@@ -2,13 +2,44 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import type {
+  CartAddItemResponseDto,
+  CartModuleDetailResponseDto,
+  CartModuleListResponseDto,
+  CartRemoveItemResponseDto,
+  CartResponseDto,
+  CartUpdateItemResponseDto,
+} from './dto/cart-response.dto';
 import type { AddToCartDto } from './dto/add-to-cart.dto';
 
 @Injectable()
 export class CartService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
+  private async resolveUserId(userId?: number) {
+    if (userId) {
+      return userId;
+    }
+
+    const buyer = await this.prisma.user.findFirst({
+      where: { role: 'buyer' },
+      select: { id: true },
+    });
+    if (!buyer) {
+      throw new BadRequestException('Buyer user not found.');
+    }
+
+    return buyer.id;
+  }
+
+  private async getOrCreateCart(userId: number) {
+    return (
+      (await this.prisma.cart.findFirst({ where: { userId } })) ??
+      (await this.prisma.cart.create({ data: { userId } }))
+    );
+  }
+
+  findAll(): CartModuleListResponseDto {
     return {
       module: 'cart',
       message: 'List endpoint scaffolded',
@@ -16,7 +47,7 @@ export class CartService {
     };
   }
 
-  findOne(id: number) {
+  findOne(id: number): CartModuleDetailResponseDto {
     return {
       module: 'cart',
       message: 'Detail endpoint scaffolded',
@@ -24,24 +55,10 @@ export class CartService {
     };
   }
 
-  async addItem(payload: AddToCartDto) {
+  async addItem(payload: AddToCartDto): Promise<CartAddItemResponseDto> {
     const quantity = payload.quantity && payload.quantity > 0 ? payload.quantity : 1;
-
-    let userId = payload.userId;
-    if (!userId) {
-      const buyer = await this.prisma.user.findFirst({
-        where: { role: 'buyer' },
-        select: { id: true },
-      });
-      if (!buyer) {
-        throw new BadRequestException('Buyer user not found.');
-      }
-      userId = buyer.id;
-    }
-
-    const cart =
-      (await this.prisma.cart.findFirst({ where: { userId } })) ??
-      (await this.prisma.cart.create({ data: { userId } }));
+    const userId = await this.resolveUserId(payload.userId);
+    const cart = await this.getOrCreateCart(userId);
 
     let sku = payload.skuId
       ? await this.prisma.productSku.findUnique({
@@ -129,5 +146,69 @@ export class CartService {
       skuId: sku.id,
       quantity: item.quantity,
     };
+  }
+
+  async getCartByUser(userId: number): Promise<CartResponseDto> {
+    const cart = await this.getOrCreateCart(userId);
+
+    const items = await this.prisma.cartItem.findMany({
+      where: { cartId: cart.id },
+      include: {
+        sku: {
+          include: {
+            product: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    return {
+      cartId: cart.id,
+      userId: cart.userId,
+      items: items.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        sku: {
+          id: item.sku.id,
+          price: item.sku.price,
+          stock: item.sku.stock,
+          imageUrl: item.sku.imageUrl,
+          product: item.sku.product,
+        },
+      })),
+    };
+  }
+
+  async updateItemQuantity(itemId: number, quantity: number): Promise<CartUpdateItemResponseDto> {
+    if (!quantity || quantity < 1) {
+      throw new BadRequestException('Quantity must be at least 1.');
+    }
+
+    const existing = await this.prisma.cartItem.findUnique({
+      where: { id: itemId },
+    });
+    if (!existing) {
+      throw new BadRequestException('Cart item not found.');
+    }
+
+    const item = await this.prisma.cartItem.update({
+      where: { id: itemId },
+      data: { quantity },
+    });
+
+    return { itemId: item.id, quantity: item.quantity };
+  }
+
+  async removeItem(itemId: number): Promise<CartRemoveItemResponseDto> {
+    const existing = await this.prisma.cartItem.findUnique({
+      where: { id: itemId },
+    });
+    if (!existing) {
+      throw new BadRequestException('Cart item not found.');
+    }
+
+    await this.prisma.cartItem.delete({ where: { id: itemId } });
+    return { itemId };
   }
 }

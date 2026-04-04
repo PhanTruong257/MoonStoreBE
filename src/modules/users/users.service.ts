@@ -8,6 +8,11 @@ import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import type {
+  UserProfileResponseDto,
+  UsersModuleDetailResponseDto,
+  UsersModuleListResponseDto,
+} from './dto/users-response.dto';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
 
 const ACCESS_COOKIE_NAME = 'access_token';
@@ -40,7 +45,7 @@ export class UsersService {
     }
   }
 
-  findAll() {
+  findAll(): UsersModuleListResponseDto {
     return {
       module: 'users',
       message: 'List endpoint scaffolded',
@@ -48,7 +53,7 @@ export class UsersService {
     };
   }
 
-  findOne(id: number) {
+  findOne(id: number): UsersModuleDetailResponseDto {
     return {
       module: 'users',
       message: 'Detail endpoint scaffolded',
@@ -56,7 +61,7 @@ export class UsersService {
     };
   }
 
-  async getProfile(req: Request) {
+  async getProfile(req: Request): Promise<UserProfileResponseDto> {
     const userId = this.getUserIdFromRequest(req);
 
     const user = await this.prisma.user.findUnique({
@@ -85,7 +90,7 @@ export class UsersService {
     };
   }
 
-  async updateProfile(req: Request, payload: UpdateProfileDto) {
+  async updateProfile(req: Request, payload: UpdateProfileDto): Promise<UserProfileResponseDto> {
     const userId = this.getUserIdFromRequest(req);
     const fullName = payload.fullName?.trim();
     const email = payload.email?.trim().toLowerCase();
@@ -151,9 +156,14 @@ export class UsersService {
       }
     }
 
-    return {
-      user,
-      address: updatedAddress,
-    };
+    if (!address) {
+      const existingAddress = await this.prisma.userAddress.findFirst({
+        where: { userId, isDefault: true },
+        select: { addressLine: true },
+      });
+      updatedAddress = existingAddress?.addressLine ?? null;
+    }
+
+    return { user, address: updatedAddress };
   }
 }

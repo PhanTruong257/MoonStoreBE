@@ -9,6 +9,11 @@ import { Response, Request } from 'express';
 import * as bcrypt from 'bcryptjs';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import type {
+  AuthLogoutResponseDto,
+  AuthUserDto,
+  AuthUserResponseDto,
+} from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
@@ -71,7 +76,12 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  private toPublicUser(user: { id: number; email: string; fullName: string; role: string }) {
+  private toPublicUser(user: {
+    id: number;
+    email: string;
+    fullName: string;
+    role: string;
+  }): AuthUserDto {
     return {
       id: user.id,
       email: user.email,
@@ -80,7 +90,7 @@ export class AuthService {
     };
   }
 
-  async register(payload: RegisterDto, res: Response) {
+  async register(payload: RegisterDto, res: Response): Promise<AuthUserResponseDto> {
     const email = payload.email?.trim().toLowerCase();
     const fullName = payload.fullName?.trim();
     const password = payload.password?.trim();
@@ -118,7 +128,7 @@ export class AuthService {
     return { user: this.toPublicUser(user) };
   }
 
-  async login(payload: LoginDto, res: Response) {
+  async login(payload: LoginDto, res: Response): Promise<AuthUserResponseDto> {
     const email = payload.email?.trim().toLowerCase();
     const password = payload.password?.trim();
 
@@ -146,12 +156,12 @@ export class AuthService {
     return { user: this.toPublicUser(user) };
   }
 
-  logout(res: Response) {
+  logout(res: Response): AuthLogoutResponseDto {
     this.clearAuthCookies(res);
     return { message: 'Logged out' };
   }
 
-  async me(req: Request) {
+  async me(req: Request): Promise<AuthUserResponseDto> {
     const cookies = req.cookies as Record<string, string> | undefined;
     const token = cookies?.[ACCESS_COOKIE_NAME];
     if (!token) {

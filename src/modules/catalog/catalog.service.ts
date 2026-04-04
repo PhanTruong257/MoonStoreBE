@@ -1,12 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import type {
+  CatalogCategoriesResponseDto,
+  CatalogModuleDetailResponseDto,
+  CatalogModuleListResponseDto,
+  CatalogProductDetailResponseDto,
+  CatalogProductsResponseDto,
+} from './dto/catalog-response.dto';
 
 @Injectable()
 export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listCategories() {
+  async listCategories(): Promise<CatalogCategoriesResponseDto> {
     const categories = await this.prisma.category.findMany({
       orderBy: { name: 'asc' },
       select: { id: true, name: true, parentId: true },
@@ -15,7 +22,7 @@ export class CatalogService {
     return { categories };
   }
 
-  async listProducts() {
+  async listProducts(): Promise<CatalogProductsResponseDto> {
     const products = await this.prisma.product.findMany({
       where: { status: 'active' },
       include: {
@@ -45,7 +52,7 @@ export class CatalogService {
     };
   }
 
-  async getProductDetail(id: number) {
+  async getProductDetail(id: number): Promise<CatalogProductDetailResponseDto> {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
@@ -111,7 +118,7 @@ export class CatalogService {
     };
   }
 
-  findAll() {
+  findAll(): CatalogModuleListResponseDto {
     return {
       module: 'catalog',
       message: 'List endpoint scaffolded',
@@ -119,7 +126,7 @@ export class CatalogService {
     };
   }
 
-  findOne(id: number) {
+  findOne(id: number): CatalogModuleDetailResponseDto {
     return {
       module: 'catalog',
       message: 'Detail endpoint scaffolded',

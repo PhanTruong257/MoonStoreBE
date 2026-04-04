@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import type {
+  VouchersModuleDetailResponseDto,
+  VouchersModuleListResponseDto,
+} from './dto/vouchers-response.dto';
 
 @Injectable()
 export class VouchersService {
-  findAll() {
+  findAll(): VouchersModuleListResponseDto {
     return {
       module: 'vouchers',
       message: 'List endpoint scaffolded',
@@ -10,7 +14,7 @@ export class VouchersService {
     };
   }
 
-  findOne(id: number) {
+  findOne(id: number): VouchersModuleDetailResponseDto {
     return {
       module: 'vouchers',
       message: 'Detail endpoint scaffolded',
