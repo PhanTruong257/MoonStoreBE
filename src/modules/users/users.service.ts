@@ -16,7 +16,7 @@ const ACCESS_COOKIE_NAME = 'access_token';
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
+    private readonly jwtService: JwtService
   ) {}
 
   private getAccessSecret() {

@@ -22,7 +22,7 @@ const REFRESH_COOKIE_NAME = 'refresh_token';
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
+    private readonly jwtService: JwtService
   ) {}
 
   private getAccessSecret() {
@@ -45,21 +45,9 @@ export class AuthService {
     };
   }
 
-  private setAuthCookies(
-    res: Response,
-    accessToken: string,
-    refreshToken: string,
-  ) {
-    res.cookie(
-      ACCESS_COOKIE_NAME,
-      accessToken,
-      this.getCookieOptions(15 * 60 * 1000),
-    );
-    res.cookie(
-      REFRESH_COOKIE_NAME,
-      refreshToken,
-      this.getCookieOptions(7 * 24 * 60 * 60 * 1000),
-    );
+  private setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
+    res.cookie(ACCESS_COOKIE_NAME, accessToken, this.getCookieOptions(15 * 60 * 1000));
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, this.getCookieOptions(7 * 24 * 60 * 60 * 1000));
   }
 
   private clearAuthCookies(res: Response) {
@@ -83,12 +71,7 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  private toPublicUser(user: {
-    id: number;
-    email: string;
-    fullName: string;
-    role: string;
-  }) {
+  private toPublicUser(user: { id: number; email: string; fullName: string; role: string }) {
     return {
       id: user.id,
       email: user.email,

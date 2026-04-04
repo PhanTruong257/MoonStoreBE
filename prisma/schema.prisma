@@ -57,9 +57,12 @@ model Seller {
 }
 
 model Category {
-  id       Int       @id @default(autoincrement())
-  name     String
-  products Product[]
+  id        Int        @id @default(autoincrement())
+  name      String
+  parentId  Int?       @map("parent_id")
+  parent    Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryChildren")
+  products  Product[]
 
   @@map("categories")
 }

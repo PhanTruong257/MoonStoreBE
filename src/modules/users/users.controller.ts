@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseIntPipe,
-  Put,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Put, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { UsersService } from './users.service';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
