@@ -43,10 +43,7 @@ export class AuthController {
       },
     },
   })
-  register(
-    @Body() payload: RegisterDto,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  register(@Body() payload: RegisterDto, @Res({ passthrough: true }) res: Response) {
     return this.authService.register(payload, res);
   }
 

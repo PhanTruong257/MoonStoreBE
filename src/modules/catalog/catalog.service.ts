@@ -81,12 +81,10 @@ export class CatalogService {
       }
     }
 
-    const optionGroups = Array.from(optionGroupsMap.entries()).map(
-      ([name, values]) => ({
-        name,
-        options: Array.from(values).map((value) => ({ value })),
-      }),
-    );
+    const optionGroups = Array.from(optionGroupsMap.entries()).map(([name, values]) => ({
+      name,
+      options: Array.from(values).map((value) => ({ value })),
+    }));
 
     return {
       product: {

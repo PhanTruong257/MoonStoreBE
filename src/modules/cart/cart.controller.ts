@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseIntPipe,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { CartService } from './cart.service';
 import type { AddToCartDto } from './dto/add-to-cart.dto';
 

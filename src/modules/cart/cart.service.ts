@@ -25,8 +25,7 @@ export class CartService {
   }
 
   async addItem(payload: AddToCartDto) {
-    const quantity =
-      payload.quantity && payload.quantity > 0 ? payload.quantity : 1;
+    const quantity = payload.quantity && payload.quantity > 0 ? payload.quantity : 1;
 
     let userId = payload.userId;
     if (!userId) {
@@ -78,8 +77,7 @@ export class CartService {
         const category =
           (await this.prisma.category.findFirst({
             where: { name: 'General' },
-          })) ??
-          (await this.prisma.category.create({ data: { name: 'General' } }));
+          })) ?? (await this.prisma.category.create({ data: { name: 'General' } }));
 
         const brand =
           (await this.prisma.brand.findFirst({ where: { name: 'General' } })) ??
