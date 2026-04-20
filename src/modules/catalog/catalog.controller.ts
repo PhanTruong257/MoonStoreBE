@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { CatalogService } from './catalog.service';
 import type {
   CatalogCategoriesResponseDto,
@@ -23,17 +23,33 @@ export class CatalogController {
   }
 
   @Get('products')
-  listProducts(): Promise<CatalogProductsResponseDto> {
-    return this.catalogService.listProducts();
+  listProducts(
+    @Query('categoryId') categoryIdRaw?: string,
+    @Query('page') pageRaw?: string,
+    @Query('limit') limitRaw?: string,
+  ): Promise<CatalogProductsResponseDto> {
+    const categoryId = categoryIdRaw ? Number(categoryIdRaw) : undefined;
+    const page = pageRaw ? Number(pageRaw) : 1;
+    const limit = limitRaw ? Number(limitRaw) : 8;
+
+    return this.catalogService.listProducts({
+      categoryId: Number.isFinite(categoryId) ? categoryId : undefined,
+      page: Number.isFinite(page) && page > 0 ? page : 1,
+      limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 40) : 8,
+    });
   }
 
   @Get('products/:id')
-  getProduct(@Param('id', ParseIntPipe) id: number): Promise<CatalogProductDetailResponseDto> {
+  getProduct(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<CatalogProductDetailResponseDto> {
     return this.catalogService.getProductDetail(id);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number): CatalogModuleDetailResponseDto {
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+  ): CatalogModuleDetailResponseDto {
     return this.catalogService.findOne(id);
   }
 }

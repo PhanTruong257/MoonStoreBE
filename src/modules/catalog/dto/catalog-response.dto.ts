@@ -29,6 +29,10 @@ export type CatalogProductListItemDto = {
 
 export type CatalogProductsResponseDto = {
   products: CatalogProductListItemDto[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 };
 
 export type CatalogOptionDto = {

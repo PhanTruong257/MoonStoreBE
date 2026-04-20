@@ -56,7 +56,8 @@ export class CartService {
   }
 
   async addItem(payload: AddToCartDto): Promise<CartAddItemResponseDto> {
-    const quantity = payload.quantity && payload.quantity > 0 ? payload.quantity : 1;
+    const quantity =
+      payload.quantity && payload.quantity > 0 ? payload.quantity : 1;
     const userId = await this.resolveUserId(payload.userId);
     const cart = await this.getOrCreateCart(userId);
 
@@ -94,7 +95,8 @@ export class CartService {
         const category =
           (await this.prisma.category.findFirst({
             where: { name: 'General' },
-          })) ?? (await this.prisma.category.create({ data: { name: 'General' } }));
+          })) ??
+          (await this.prisma.category.create({ data: { name: 'General' } }));
 
         const brand =
           (await this.prisma.brand.findFirst({ where: { name: 'General' } })) ??
@@ -171,7 +173,7 @@ export class CartService {
         quantity: item.quantity,
         sku: {
           id: item.sku.id,
-          price: item.sku.price,
+          price: Number(item.sku.price),
           stock: item.sku.stock,
           imageUrl: item.sku.imageUrl,
           product: item.sku.product,
@@ -180,7 +182,10 @@ export class CartService {
     };
   }
 
-  async updateItemQuantity(itemId: number, quantity: number): Promise<CartUpdateItemResponseDto> {
+  async updateItemQuantity(
+    itemId: number,
+    quantity: number,
+  ): Promise<CartUpdateItemResponseDto> {
     if (!quantity || quantity < 1) {
       throw new BadRequestException('Quantity must be at least 1.');
     }

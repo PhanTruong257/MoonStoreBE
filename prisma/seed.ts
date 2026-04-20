@@ -86,6 +86,17 @@ const seedBuyer = async () => {
 const seedCatalog = async (sellerId: number) => {
   const categoryTree = [
     {
+      name: 'Danh muc',
+      children: [
+        'Dien thoai',
+        'Laptop',
+        'May tinh bang',
+        'Dong ho thong minh',
+        'Tai nghe',
+        'Phu kien',
+      ],
+    },
+    {
       name: 'Phones',
       children: ['Flagship Phones', 'Budget Phones', 'Foldable Phones'],
     },

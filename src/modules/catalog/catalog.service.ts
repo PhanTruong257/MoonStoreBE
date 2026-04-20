@@ -13,6 +13,30 @@ import type {
 export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async resolveCategoryFilterIds(
+    categoryId?: number,
+  ): Promise<number[] | undefined> {
+    if (!categoryId) {
+      return undefined;
+    }
+
+    const category = await this.prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { id: true },
+    });
+
+    if (!category) {
+      return [];
+    }
+
+    const childCategories = await this.prisma.category.findMany({
+      where: { parentId: categoryId },
+      select: { id: true },
+    });
+
+    return [categoryId, ...childCategories.map((item) => item.id)];
+  }
+
   async listCategories(): Promise<CatalogCategoriesResponseDto> {
     const categories = await this.prisma.category.findMany({
       orderBy: { name: 'asc' },
@@ -22,22 +46,46 @@ export class CatalogService {
     return { categories };
   }
 
-  async listProducts(): Promise<CatalogProductsResponseDto> {
-    const products = await this.prisma.product.findMany({
-      where: { status: 'active' },
-      include: {
-        category: { select: { id: true, name: true } },
-        brand: { select: { id: true, name: true } },
-        skus: {
-          select: { id: true, price: true, stock: true, imageUrl: true },
-          take: 1,
-          orderBy: { id: 'asc' },
+  async listProducts(params?: {
+    categoryId?: number;
+    page?: number;
+    limit?: number;
+  }): Promise<CatalogProductsResponseDto> {
+    const page = params?.page && params.page > 0 ? params.page : 1;
+    const limit = params?.limit && params.limit > 0 ? params.limit : 8;
+    const categoryIds = await this.resolveCategoryFilterIds(params?.categoryId);
+
+    const whereClause = {
+      status: 'active',
+      ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
+    };
+
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where: whereClause,
+        include: {
+          category: { select: { id: true, name: true } },
+          brand: { select: { id: true, name: true } },
+          skus: {
+            select: { id: true, price: true, stock: true, imageUrl: true },
+            take: 1,
+            orderBy: { id: 'asc' },
+          },
         },
-      },
-      orderBy: { id: 'asc' },
-    });
+        orderBy: { id: 'asc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.product.count({ where: whereClause }),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / limit));
 
     return {
+      page,
+      limit,
+      total,
+      totalPages,
       products: products.map((product) => ({
         id: product.id,
         name: product.name,
@@ -47,7 +95,12 @@ export class CatalogService {
         categoryName: product.category.name,
         brandId: product.brandId,
         brandName: product.brand.name,
-        defaultSku: product.skus[0] ?? null,
+        defaultSku: product.skus[0]
+          ? {
+              ...product.skus[0],
+              price: Number(product.skus[0].price),
+            }
+          : null,
       })),
     };
   }
@@ -88,10 +141,12 @@ export class CatalogService {
       }
     }
 
-    const optionGroups = Array.from(optionGroupsMap.entries()).map(([name, values]) => ({
-      name,
-      options: Array.from(values).map((value) => ({ value })),
-    }));
+    const optionGroups = Array.from(optionGroupsMap.entries()).map(
+      ([name, values]) => ({
+        name,
+        options: Array.from(values).map((value) => ({ value })),
+      }),
+    );
 
     return {
       product: {
@@ -105,7 +160,7 @@ export class CatalogService {
         brandName: product.brand.name,
         skus: product.skus.map((sku) => ({
           id: sku.id,
-          price: sku.price,
+          price: Number(sku.price),
           stock: sku.stock,
           imageUrl: sku.imageUrl,
           attributes: sku.skuAttributeValues.map((item) => ({
