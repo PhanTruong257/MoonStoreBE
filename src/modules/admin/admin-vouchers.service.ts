@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 
 import { ensureAdminRole } from '../../common/auth/admin-guard.helper';
 import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
+import { VOUCHER_DISCOUNT_TYPES } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   AdminVoucherListResponseDto,
@@ -13,8 +14,6 @@ import type {
   CreateVoucherDto,
   UpdateVoucherDto,
 } from './dto/voucher.dto';
-
-const DISCOUNT_TYPES = ['percent', 'fixed'];
 
 @Injectable()
 export class AdminVouchersService {
@@ -29,8 +28,10 @@ export class AdminVouchersService {
   }
 
   private validateDiscountType(type: string): void {
-    if (!DISCOUNT_TYPES.includes(type)) {
-      throw new BadRequestException(`discountType must be one of: ${DISCOUNT_TYPES.join(', ')}`);
+    if (!(VOUCHER_DISCOUNT_TYPES as string[]).includes(type)) {
+      throw new BadRequestException(
+        `discountType must be one of: ${VOUCHER_DISCOUNT_TYPES.join(', ')}`,
+      );
     }
   }
 

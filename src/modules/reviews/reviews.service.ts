@@ -8,6 +8,7 @@ import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 
 import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
+import { ORDER_GROUP_STATUS } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { CreateReviewDto } from './dto/create-review.dto';
 import type {
@@ -17,8 +18,6 @@ import type {
   ReviewsModuleDetailResponseDto,
   ReviewsModuleListResponseDto,
 } from './dto/reviews-response.dto';
-
-const DELIVERED_STATUS = 'DELIVERED';
 
 @Injectable()
 export class ReviewsService {
@@ -36,7 +35,7 @@ export class ReviewsService {
       where: {
         productId,
         orderGroup: {
-          status: DELIVERED_STATUS,
+          status: ORDER_GROUP_STATUS.DELIVERED,
           order: { userId },
         },
       },

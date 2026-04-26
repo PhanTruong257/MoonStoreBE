@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
+import { PRODUCT_STATUS, SELLER_STATUS } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   CatalogCategoriesResponseDto,
@@ -54,8 +55,8 @@ export class CatalogService {
     const categoryIds = await this.resolveCategoryFilterIds(params?.categoryId);
 
     const whereClause = {
-      status: { in: ['active'] },
-      seller: { status: 'active' },
+      status: { in: [PRODUCT_STATUS.ACTIVE] },
+      seller: { status: SELLER_STATUS.ACTIVE },
       ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
     };
 
@@ -98,7 +99,7 @@ export class CatalogService {
 
   async getProductDetail(id: number): Promise<CatalogProductDetailResponseDto> {
     const product = await this.prisma.product.findFirst({
-      where: { id, seller: { status: 'active' } },
+      where: { id, seller: { status: SELLER_STATUS.ACTIVE } },
       include: {
         category: { select: { id: true, name: true } },
         brand: { select: { id: true, name: true } },

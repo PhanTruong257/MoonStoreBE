@@ -4,6 +4,11 @@ import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
 
 import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
+import {
+  ORDER_GROUP_STATUS,
+  ORDER_GROUP_STATUS_FLOW,
+} from '../../common/constants';
+import { PAYMENT_METHOD, PAYMENT_STATUS } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VouchersService } from '../vouchers/vouchers.service';
 import type { CreateOrderDto } from './dto/create-order.dto';
@@ -14,8 +19,6 @@ import type {
   OrderGroupStatusResponseDto,
   OrderListResponseDto,
 } from './dto/orders-response.dto';
-
-const GROUP_STATUS_FLOW = ['PENDING', 'CONFIRMED', 'SHIPPING', 'DELIVERED'];
 
 @Injectable()
 export class OrdersService {
@@ -108,7 +111,7 @@ export class OrdersService {
     });
 
     const shippingFee = Number(payload.shippingFee ?? 0);
-    const paymentMethod = payload.paymentMethod?.trim() || 'COD';
+    const paymentMethod = payload.paymentMethod?.trim() || PAYMENT_METHOD.COD;
     const totalAmount = enrichedItems.reduce((sum, item) => sum + item.lineTotal, 0);
 
     let resolvedShippingAddress: Prisma.InputJsonValue | typeof Prisma.DbNull = Prisma.DbNull;
@@ -167,8 +170,8 @@ export class OrdersService {
           discountAmount: new Prisma.Decimal(discountAmount),
           finalAmount: new Prisma.Decimal(finalAmount),
           paymentMethod,
-          paymentStatus: 'PENDING',
-          status: 'PENDING',
+          paymentStatus: PAYMENT_STATUS.PENDING,
+          status: ORDER_GROUP_STATUS.PENDING,
           shippingAddress: resolvedShippingAddress,
         },
         select: { id: true },
@@ -182,7 +185,7 @@ export class OrdersService {
           data: {
             orderId: createdOrder.id,
             sellerId,
-            status: 'PENDING',
+            status: ORDER_GROUP_STATUS.PENDING,
             subtotal: new Prisma.Decimal(subtotal),
             shippingFee: new Prisma.Decimal(0),
           },
@@ -215,7 +218,7 @@ export class OrdersService {
         await tx.orderStatusLog.create({
           data: {
             orderGroupId: group.id,
-            status: 'PENDING',
+            status: ORDER_GROUP_STATUS.PENDING,
             note: 'Order created',
           },
         });
@@ -356,7 +359,13 @@ export class OrdersService {
     const sellerId = await this.getSellerIdForUser(userId);
     const nextStatus = payload.status?.trim().toUpperCase();
 
-    if (!nextStatus || (!GROUP_STATUS_FLOW.includes(nextStatus) && nextStatus !== 'CANCELLED')) {
+    const isFlowStatus = (ORDER_GROUP_STATUS_FLOW as string[]).includes(
+      nextStatus ?? '',
+    );
+    if (
+      !nextStatus ||
+      (!isFlowStatus && nextStatus !== ORDER_GROUP_STATUS.CANCELLED)
+    ) {
       throw new BadRequestException('Invalid status.');
     }
 
@@ -369,13 +378,17 @@ export class OrdersService {
       throw new ForbiddenException('Order group not found.');
     }
 
-    if (group.status === 'CANCELLED' || group.status === 'DELIVERED') {
+    if (
+      group.status === ORDER_GROUP_STATUS.CANCELLED ||
+      group.status === ORDER_GROUP_STATUS.DELIVERED
+    ) {
       throw new BadRequestException('Order group cannot be updated.');
     }
 
-    if (nextStatus !== 'CANCELLED') {
-      const currentIndex = GROUP_STATUS_FLOW.indexOf(group.status);
-      const nextIndex = GROUP_STATUS_FLOW.indexOf(nextStatus);
+    if (nextStatus !== ORDER_GROUP_STATUS.CANCELLED) {
+      const flow = ORDER_GROUP_STATUS_FLOW as string[];
+      const currentIndex = flow.indexOf(group.status);
+      const nextIndex = flow.indexOf(nextStatus);
       if (nextIndex !== currentIndex + 1) {
         throw new BadRequestException('Invalid status transition.');
       }
@@ -410,20 +423,20 @@ export class OrdersService {
       throw new ForbiddenException('Order group not found.');
     }
 
-    if (group.status !== 'PENDING') {
+    if (group.status !== ORDER_GROUP_STATUS.PENDING) {
       throw new BadRequestException('Order group cannot be cancelled.');
     }
 
     const updated = await this.prisma.orderGroup.update({
       where: { id: groupId },
-      data: { status: 'CANCELLED' },
+      data: { status: ORDER_GROUP_STATUS.CANCELLED },
       select: { id: true, status: true },
     });
 
     await this.prisma.orderStatusLog.create({
       data: {
         orderGroupId: groupId,
-        status: 'CANCELLED',
+        status: ORDER_GROUP_STATUS.CANCELLED,
         note: 'Cancelled by buyer',
       },
     });

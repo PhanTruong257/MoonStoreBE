@@ -14,6 +14,7 @@ import {
   getAccessSecret,
   getRefreshSecret,
 } from '../../common/auth/auth-token.helper';
+import { USER_ROLE, USER_STATUS } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   AuthLogoutResponseDto,
@@ -106,8 +107,8 @@ export class AuthService {
         password: hashedPassword,
         fullName,
         phone: payload.phone?.trim() ?? '',
-        role: 'user',
-        status: 'active',
+        role: USER_ROLE.USER,
+        status: USER_STATUS.ACTIVE,
       },
       select: {
         id: true,
@@ -141,7 +142,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials.');
     }
 
-    if (user.status !== 'active') {
+    if (user.status !== USER_STATUS.ACTIVE) {
       throw new UnauthorizedException('Account is disabled.');
     }
 

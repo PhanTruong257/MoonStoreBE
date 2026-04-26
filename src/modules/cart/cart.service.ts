@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
+import { USER_ROLE } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   CartAddItemResponseDto,
@@ -21,7 +22,7 @@ export class CartService {
     }
 
     const fallback = await this.prisma.user.findFirst({
-      where: { role: 'user' },
+      where: { role: USER_ROLE.USER },
       select: { id: true },
     });
     if (!fallback) {

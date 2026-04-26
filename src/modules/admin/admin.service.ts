@@ -9,6 +9,12 @@ import { JwtService } from '@nestjs/jwt';
 
 import { ensureAdminRole } from '../../common/auth/admin-guard.helper';
 import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
+import {
+  SELLER_STATUS,
+  USER_ROLE,
+  USER_STATUS,
+  type UserStatus,
+} from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   AdminPromoteAdminResponseDto,
@@ -104,19 +110,19 @@ export class AdminService {
     if (!seller) {
       throw new NotFoundException('Seller not found.');
     }
-    if (seller.status === 'active') {
+    if (seller.status === SELLER_STATUS.ACTIVE) {
       throw new BadRequestException('Seller is already active.');
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: seller.userId },
-        data: { role: 'seller' },
+        data: { role: USER_ROLE.SELLER },
       });
 
       return tx.seller.update({
         where: { id: seller.id },
-        data: { status: 'active', rejectReason: null },
+        data: { status: SELLER_STATUS.ACTIVE, rejectReason: null },
         include: {
           user: {
             select: {
@@ -158,14 +164,14 @@ export class AdminService {
     if (!seller) {
       throw new NotFoundException('Seller not found.');
     }
-    if (seller.status === 'rejected') {
+    if (seller.status === SELLER_STATUS.REJECTED) {
       throw new BadRequestException('Seller is already rejected.');
     }
 
     const updated = await this.prisma.seller.update({
       where: { id: seller.id },
       data: {
-        status: 'rejected',
+        status: SELLER_STATUS.REJECTED,
         rejectReason: payload.reason?.trim() ?? null,
       },
       include: {
@@ -204,13 +210,13 @@ export class AdminService {
     if (!target) {
       throw new NotFoundException('User not found.');
     }
-    if (target.role === 'admin') {
+    if (target.role === USER_ROLE.ADMIN) {
       throw new ConflictException('User is already an admin.');
     }
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
-      data: { role: 'admin' },
+      data: { role: USER_ROLE.ADMIN },
       select: {
         id: true,
         email: true,
@@ -240,9 +246,13 @@ export class AdminService {
 
     const [totalUsers, totalSellers, pendingSellers, totalAdmins] = await Promise.all([
       this.prisma.user.count(),
-      this.prisma.seller.count({ where: { status: 'active' } }),
-      this.prisma.seller.count({ where: { status: 'pending' } }),
-      this.prisma.user.count({ where: { role: 'admin' } }),
+      this.prisma.seller.count({
+        where: { status: SELLER_STATUS.ACTIVE },
+      }),
+      this.prisma.seller.count({
+        where: { status: SELLER_STATUS.PENDING },
+      }),
+      this.prisma.user.count({ where: { role: USER_ROLE.ADMIN } }),
     ]);
 
     return { totalUsers, totalSellers, pendingSellers, totalAdmins };
@@ -251,7 +261,7 @@ export class AdminService {
   async setUserStatus(
     req: Request,
     userId: number,
-    nextStatus: 'active' | 'disabled'
+    nextStatus: UserStatus,
   ): Promise<AdminPromoteAdminResponseDto> {
     const adminUserId = await this.assertAdmin(req);
 
@@ -300,7 +310,7 @@ export class AdminService {
   async setSellerStatus(
     req: Request,
     sellerId: number,
-    nextStatus: 'active' | 'disabled'
+    nextStatus: typeof SELLER_STATUS.ACTIVE | typeof SELLER_STATUS.DISABLED,
   ): Promise<AdminSellerActionResponseDto> {
     await this.assertAdmin(req);
 
@@ -314,7 +324,10 @@ export class AdminService {
     if (seller.status === nextStatus) {
       throw new BadRequestException(`Seller is already ${nextStatus}.`);
     }
-    if (seller.status === 'pending' || seller.status === 'rejected') {
+    if (
+      seller.status === SELLER_STATUS.PENDING ||
+      seller.status === SELLER_STATUS.REJECTED
+    ) {
       throw new BadRequestException('Use approve/reject endpoints for pending/rejected sellers.');
     }
 

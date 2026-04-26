@@ -10,6 +10,11 @@ import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
 
 import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
+import {
+  ORDER_GROUP_STATUS,
+  PRODUCT_STATUS,
+  SELLER_STATUS,
+} from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   CreateProductResponseDto,
@@ -55,7 +60,7 @@ export class SellersService {
       select: { id: true, status: true },
     });
 
-    if (!seller || seller.status !== 'active') {
+    if (!seller || seller.status !== SELLER_STATUS.ACTIVE) {
       throw new ForbiddenException('Active seller profile not found.');
     }
 
@@ -165,7 +170,7 @@ export class SellersService {
       where: { userId },
       select: { id: true, status: true },
     });
-    if (existing && existing.status !== 'rejected') {
+    if (existing && existing.status !== SELLER_STATUS.REJECTED) {
       throw new ConflictException(
         'Seller application already exists. Please wait for admin review.'
       );
@@ -174,7 +179,7 @@ export class SellersService {
     const data = {
       shopName: payload.shopName.trim(),
       description: payload.description?.trim() ?? null,
-      status: 'pending',
+      status: SELLER_STATUS.PENDING,
       rejectReason: null,
     };
 
@@ -238,8 +243,10 @@ export class SellersService {
       throw new NotFoundException('Seller profile not found.');
     }
 
-    if (existing.status === 'pending') {
-      throw new BadRequestException('Application is being reviewed and cannot be edited.');
+    if (existing.status === SELLER_STATUS.PENDING) {
+      throw new BadRequestException(
+        'Application is being reviewed and cannot be edited.',
+      );
     }
 
     const data: Prisma.SellerUpdateInput = {};
@@ -254,8 +261,8 @@ export class SellersService {
       data.description = payload.description?.trim() ?? null;
     }
 
-    if (existing.status === 'rejected') {
-      data.status = 'pending';
+    if (existing.status === SELLER_STATUS.REJECTED) {
+      data.status = SELLER_STATUS.PENDING;
       data.rejectReason = null;
     }
 
@@ -307,7 +314,7 @@ export class SellersService {
           basePrice: new Prisma.Decimal(payload.basePrice),
           stock: payload.stock,
           imageUrl: payload.imageUrl.trim(),
-          status: payload.status?.trim() ?? 'active',
+          status: payload.status?.trim() ?? PRODUCT_STATUS.ACTIVE,
         },
       });
 
@@ -427,7 +434,7 @@ export class SellersService {
 
     const updated = await this.prisma.product.update({
       where: { id: productId },
-      data: { status: 'deleted' },
+      data: { status: PRODUCT_STATUS.DELETED },
       select: { id: true, status: true },
     });
 
@@ -592,7 +599,9 @@ export class SellersService {
 
     const [totalProducts, activeProducts, groups] = await Promise.all([
       this.prisma.product.count({ where: { sellerId } }),
-      this.prisma.product.count({ where: { sellerId, status: 'active' } }),
+      this.prisma.product.count({
+        where: { sellerId, status: PRODUCT_STATUS.ACTIVE },
+      }),
       this.prisma.orderGroup.findMany({
         where: { sellerId },
         select: { status: true, subtotal: true },
@@ -600,10 +609,14 @@ export class SellersService {
     ]);
 
     const totalOrders = groups.length;
-    const pendingOrders = groups.filter((g) => g.status === 'PENDING').length;
-    const deliveredOrders = groups.filter((g) => g.status === 'DELIVERED').length;
+    const pendingOrders = groups.filter(
+      (g) => g.status === ORDER_GROUP_STATUS.PENDING,
+    ).length;
+    const deliveredOrders = groups.filter(
+      (g) => g.status === ORDER_GROUP_STATUS.DELIVERED,
+    ).length;
     const revenue = groups
-      .filter((g) => g.status === 'DELIVERED')
+      .filter((g) => g.status === ORDER_GROUP_STATUS.DELIVERED)
       .reduce((sum, g) => sum + Number(g.subtotal), 0);
 
     return {

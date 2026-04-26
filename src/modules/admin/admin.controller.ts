@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Patch, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 
+import { SELLER_STATUS, USER_STATUS } from '../../common/constants';
 import { AdminService } from './admin.service';
 import type {
   AdminPromoteAdminResponseDto,
@@ -63,30 +64,38 @@ export class AdminController {
     @Req() req: Request,
     @Param('userId', ParseIntPipe) userId: number
   ): Promise<AdminPromoteAdminResponseDto> {
-    return this.adminService.setUserStatus(req, userId, 'disabled');
+    return this.adminService.setUserStatus(req, userId, USER_STATUS.DISABLED);
   }
 
   @Patch('users/:userId/enable')
   enableUser(
     @Req() req: Request,
-    @Param('userId', ParseIntPipe) userId: number
+    @Param('userId', ParseIntPipe) userId: number,
   ): Promise<AdminPromoteAdminResponseDto> {
-    return this.adminService.setUserStatus(req, userId, 'active');
+    return this.adminService.setUserStatus(req, userId, USER_STATUS.ACTIVE);
   }
 
   @Patch('sellers/:sellerId/disable')
   disableSeller(
     @Req() req: Request,
-    @Param('sellerId', ParseIntPipe) sellerId: number
+    @Param('sellerId', ParseIntPipe) sellerId: number,
   ): Promise<AdminSellerActionResponseDto> {
-    return this.adminService.setSellerStatus(req, sellerId, 'disabled');
+    return this.adminService.setSellerStatus(
+      req,
+      sellerId,
+      SELLER_STATUS.DISABLED,
+    );
   }
 
   @Patch('sellers/:sellerId/enable')
   enableSeller(
     @Req() req: Request,
-    @Param('sellerId', ParseIntPipe) sellerId: number
+    @Param('sellerId', ParseIntPipe) sellerId: number,
   ): Promise<AdminSellerActionResponseDto> {
-    return this.adminService.setSellerStatus(req, sellerId, 'active');
+    return this.adminService.setSellerStatus(
+      req,
+      sellerId,
+      SELLER_STATUS.ACTIVE,
+    );
   }
 }
