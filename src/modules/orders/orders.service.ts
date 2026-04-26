@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
@@ -26,7 +22,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-    private readonly vouchersService: VouchersService,
+    private readonly vouchersService: VouchersService
   ) {}
 
   private getUserIdFromRequest(req: Request) {
@@ -46,10 +42,7 @@ export class OrdersService {
     return seller.id;
   }
 
-  async createOrder(
-    req: Request,
-    payload: CreateOrderDto,
-  ): Promise<OrderCreateResponseDto> {
+  async createOrder(req: Request, payload: CreateOrderDto): Promise<OrderCreateResponseDto> {
     const userId = this.getUserIdFromRequest(req);
     const cart = await this.prisma.cart.findFirst({ where: { userId } });
 
@@ -92,7 +85,7 @@ export class OrdersService {
     cartItems.forEach((item) => {
       if (item.quantity > item.product.stock) {
         throw new BadRequestException(
-          `Product ${item.product.name} is out of stock for requested quantity.`,
+          `Product ${item.product.name} is out of stock for requested quantity.`
         );
       }
     });
@@ -101,7 +94,7 @@ export class OrdersService {
       const basePrice = Number(item.product.basePrice);
       const optionsTotal = item.selectedOptions.reduce(
         (sum, entry) => sum + Number(entry.option.priceDelta),
-        0,
+        0
       );
       const unitPrice = basePrice + optionsTotal;
 
@@ -116,10 +109,25 @@ export class OrdersService {
 
     const shippingFee = Number(payload.shippingFee ?? 0);
     const paymentMethod = payload.paymentMethod?.trim() || 'COD';
-    const totalAmount = enrichedItems.reduce(
-      (sum, item) => sum + item.lineTotal,
-      0,
-    );
+    const totalAmount = enrichedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+
+    let resolvedShippingAddress: Prisma.InputJsonValue | typeof Prisma.DbNull = Prisma.DbNull;
+    if (payload.addressId) {
+      const saved = await this.prisma.userAddress.findUnique({
+        where: { id: payload.addressId },
+      });
+      if (!saved || saved.userId !== userId) {
+        throw new BadRequestException('Address not found.');
+      }
+      resolvedShippingAddress = {
+        addressLine: saved.addressLine,
+        city: saved.city,
+        district: saved.district,
+        addressId: saved.id,
+      };
+    } else if (payload.shippingAddress) {
+      resolvedShippingAddress = payload.shippingAddress as Prisma.InputJsonValue;
+    }
 
     let voucherId: number | null = null;
     let discountAmount = 0;
@@ -129,9 +137,7 @@ export class OrdersService {
         subtotal: totalAmount,
       });
       if (!validation.isValid || !validation.voucher) {
-        throw new BadRequestException(
-          validation.reason ?? 'Invalid voucher.',
-        );
+        throw new BadRequestException(validation.reason ?? 'Invalid voucher.');
       }
       voucherId = validation.voucher.id;
       discountAmount = validation.discountAmount;
@@ -148,7 +154,7 @@ export class OrdersService {
         acc[sellerId].push(item);
         return acc;
       },
-      {} as Record<number, typeof enrichedItems>,
+      {} as Record<number, typeof enrichedItems>
     );
 
     const order = await this.prisma.$transaction(async (tx) => {
@@ -163,18 +169,14 @@ export class OrdersService {
           paymentMethod,
           paymentStatus: 'PENDING',
           status: 'PENDING',
-          shippingAddress:
-            (payload.shippingAddress as Prisma.InputJsonValue) ?? Prisma.DbNull,
+          shippingAddress: resolvedShippingAddress,
         },
         select: { id: true },
       });
 
       for (const [sellerKey, sellerItems] of Object.entries(grouped)) {
         const sellerId = Number(sellerKey);
-        const subtotal = sellerItems.reduce(
-          (sum, entry) => sum + entry.lineTotal,
-          0,
-        );
+        const subtotal = sellerItems.reduce((sum, entry) => sum + entry.lineTotal, 0);
 
         const group = await tx.orderGroup.create({
           data: {
@@ -203,9 +205,7 @@ export class OrdersService {
                   optionId: selected.option.id,
                   groupName: selected.option.group.name,
                   optionName: selected.option.name,
-                  priceDelta: new Prisma.Decimal(
-                    Number(selected.option.priceDelta),
-                  ),
+                  priceDelta: new Prisma.Decimal(Number(selected.option.priceDelta)),
                 })),
               },
             },
@@ -226,8 +226,8 @@ export class OrdersService {
           tx.product.update({
             where: { id: entry.cartItem.product.id },
             data: { stock: { decrement: entry.cartItem.quantity } },
-          }),
-        ),
+          })
+        )
       );
 
       if (voucherId !== null) {
@@ -285,10 +285,7 @@ export class OrdersService {
     };
   }
 
-  async getOrderDetail(
-    req: Request,
-    orderId: number,
-  ): Promise<OrderDetailResponseDto> {
+  async getOrderDetail(req: Request, orderId: number): Promise<OrderDetailResponseDto> {
     const userId = this.getUserIdFromRequest(req);
 
     const order = await this.prisma.order.findUnique({
@@ -353,16 +350,13 @@ export class OrdersService {
   async updateGroupStatus(
     req: Request,
     groupId: number,
-    payload: UpdateOrderGroupStatusDto,
+    payload: UpdateOrderGroupStatusDto
   ): Promise<OrderGroupStatusResponseDto> {
     const userId = this.getUserIdFromRequest(req);
     const sellerId = await this.getSellerIdForUser(userId);
     const nextStatus = payload.status?.trim().toUpperCase();
 
-    if (
-      !nextStatus ||
-      (!GROUP_STATUS_FLOW.includes(nextStatus) && nextStatus !== 'CANCELLED')
-    ) {
+    if (!nextStatus || (!GROUP_STATUS_FLOW.includes(nextStatus) && nextStatus !== 'CANCELLED')) {
       throw new BadRequestException('Invalid status.');
     }
 
@@ -404,10 +398,7 @@ export class OrdersService {
     return { groupId: updated.id, status: updated.status };
   }
 
-  async cancelGroup(
-    req: Request,
-    groupId: number,
-  ): Promise<OrderGroupStatusResponseDto> {
+  async cancelGroup(req: Request, groupId: number): Promise<OrderGroupStatusResponseDto> {
     const userId = this.getUserIdFromRequest(req);
 
     const group = await this.prisma.orderGroup.findUnique({

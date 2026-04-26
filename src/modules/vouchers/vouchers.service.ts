@@ -31,9 +31,7 @@ export class VouchersService {
     };
   }
 
-  async validateVoucher(
-    payload: ValidateVoucherDto,
-  ): Promise<VoucherValidateResponseDto> {
+  async validateVoucher(payload: ValidateVoucherDto): Promise<VoucherValidateResponseDto> {
     const code = payload.code?.trim().toUpperCase();
     const subtotal = Number(payload.subtotal ?? 0);
 
@@ -72,7 +70,7 @@ export class VouchersService {
       voucher.discountType,
       Number(voucher.value),
       voucher.maxDiscount ? Number(voucher.maxDiscount) : null,
-      subtotal,
+      subtotal
     );
 
     return {
@@ -94,7 +92,7 @@ export class VouchersService {
     discountType: string,
     value: number,
     maxDiscount: number | null,
-    subtotal: number,
+    subtotal: number
   ): number {
     if (subtotal <= 0) {
       return 0;

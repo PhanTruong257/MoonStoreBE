@@ -30,7 +30,7 @@ const REFRESH_TOKEN_TTL = '7d';
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
+    private readonly jwtService: JwtService
   ) {}
 
   private getCookieOptions(maxAgeMs: number) {
@@ -139,6 +139,10 @@ export class AuthService {
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       throw new UnauthorizedException('Invalid credentials.');
+    }
+
+    if (user.status !== 'active') {
+      throw new UnauthorizedException('Account is disabled.');
     }
 
     const tokens = this.buildTokens({

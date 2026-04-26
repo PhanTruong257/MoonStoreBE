@@ -7,13 +7,9 @@ export const REFRESH_COOKIE_NAME = 'refresh_token';
 
 export const getAccessSecret = () => process.env.JWT_SECRET ?? 'dev-secret';
 
-export const getRefreshSecret = () =>
-  process.env.JWT_REFRESH_SECRET ?? 'dev-refresh-secret';
+export const getRefreshSecret = () => process.env.JWT_REFRESH_SECRET ?? 'dev-refresh-secret';
 
-export const extractUserIdFromRequest = (
-  req: Request,
-  jwtService: JwtService,
-): number => {
+export const extractUserIdFromRequest = (req: Request, jwtService: JwtService): number => {
   const cookies = req.cookies as Record<string, string> | undefined;
   const token = cookies?.[ACCESS_COOKIE_NAME];
   if (!token) {

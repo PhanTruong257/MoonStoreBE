@@ -19,10 +19,7 @@ import type {
   SellersModuleDetailResponseDto,
   SellersModuleListResponseDto,
 } from './dto/sellers-response.dto';
-import type {
-  CreateProductDto,
-  CreateProductOptionGroupDto,
-} from './dto/create-product.dto';
+import type { CreateProductDto, CreateProductOptionGroupDto } from './dto/create-product.dto';
 import type { CreateSellerDto } from './dto/create-seller.dto';
 import type { UpdateSellerProfileDto } from './dto/update-seller-profile.dto';
 import type { UpdateSellerProductDto } from './dto/update-product.dto';
@@ -45,7 +42,7 @@ type ProductWithOptionGroups = Prisma.ProductGetPayload<{
 export class SellersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
+    private readonly jwtService: JwtService
   ) {}
 
   private getUserIdFromRequest(req: Request) {
@@ -65,12 +62,8 @@ export class SellersService {
     return seller.id;
   }
 
-  private mapOptionGroups(
-    product: ProductWithOptionGroups,
-  ): SellerProductOptionGroupDto[] {
-    const sortedGroups = [...product.optionGroups].sort(
-      (a, b) => a.position - b.position,
-    );
+  private mapOptionGroups(product: ProductWithOptionGroups): SellerProductOptionGroupDto[] {
+    const sortedGroups = [...product.optionGroups].sort((a, b) => a.position - b.position);
     return sortedGroups.map((group) => ({
       id: group.id,
       name: group.name,
@@ -88,9 +81,7 @@ export class SellersService {
     }));
   }
 
-  private toProductResponse(
-    product: ProductWithOptionGroups,
-  ): CreateProductResponseDto {
+  private toProductResponse(product: ProductWithOptionGroups): CreateProductResponseDto {
     return {
       product: {
         id: product.id,
@@ -111,7 +102,7 @@ export class SellersService {
   private async replaceOptionGroups(
     tx: Prisma.TransactionClient,
     productId: number,
-    groups: CreateProductOptionGroupDto[],
+    groups: CreateProductOptionGroupDto[]
   ) {
     await tx.option.deleteMany({ where: { group: { productId } } });
     await tx.optionGroup.deleteMany({ where: { productId } });
@@ -162,7 +153,7 @@ export class SellersService {
 
   async createSellerProfile(
     req: Request,
-    payload: CreateSellerDto,
+    payload: CreateSellerDto
   ): Promise<CreateSellerResponseDto> {
     const userId = this.getUserIdFromRequest(req);
 
@@ -176,7 +167,7 @@ export class SellersService {
     });
     if (existing && existing.status !== 'rejected') {
       throw new ConflictException(
-        'Seller application already exists. Please wait for admin review.',
+        'Seller application already exists. Please wait for admin review.'
       );
     }
 
@@ -235,7 +226,7 @@ export class SellersService {
 
   async updateMyProfile(
     req: Request,
-    payload: UpdateSellerProfileDto,
+    payload: UpdateSellerProfileDto
   ): Promise<SellerProfileMeResponseDto> {
     const userId = this.getUserIdFromRequest(req);
 
@@ -248,9 +239,7 @@ export class SellersService {
     }
 
     if (existing.status === 'pending') {
-      throw new BadRequestException(
-        'Application is being reviewed and cannot be edited.',
-      );
+      throw new BadRequestException('Application is being reviewed and cannot be edited.');
     }
 
     const data: Prisma.SellerUpdateInput = {};
@@ -286,10 +275,7 @@ export class SellersService {
     return { seller };
   }
 
-  async createProduct(
-    req: Request,
-    payload: CreateProductDto,
-  ): Promise<CreateProductResponseDto> {
+  async createProduct(req: Request, payload: CreateProductDto): Promise<CreateProductResponseDto> {
     const userId = this.getUserIdFromRequest(req);
     const sellerId = await this.getSellerIdForUser(userId);
     const seller = { id: sellerId };
@@ -340,10 +326,7 @@ export class SellersService {
     return this.toProductResponse(product);
   }
 
-  async getSellerProductDetail(
-    req: Request,
-    productId: number,
-  ): Promise<CreateProductResponseDto> {
+  async getSellerProductDetail(req: Request, productId: number): Promise<CreateProductResponseDto> {
     const userId = this.getUserIdFromRequest(req);
     const sellerId = await this.getSellerIdForUser(userId);
 
@@ -366,7 +349,7 @@ export class SellersService {
   async updateSellerProduct(
     req: Request,
     productId: number,
-    payload: UpdateSellerProductDto,
+    payload: UpdateSellerProductDto
   ): Promise<CreateProductResponseDto> {
     const userId = this.getUserIdFromRequest(req);
     const sellerId = await this.getSellerIdForUser(userId);
@@ -426,7 +409,7 @@ export class SellersService {
 
   async deleteSellerProduct(
     req: Request,
-    productId: number,
+    productId: number
   ): Promise<{ id: number; status: string }> {
     const userId = this.getUserIdFromRequest(req);
     const sellerId = await this.getSellerIdForUser(userId);
@@ -451,9 +434,7 @@ export class SellersService {
     return updated;
   }
 
-  async findSellerProducts(
-    req: Request,
-  ): Promise<SellerProductListResponseDto> {
+  async findSellerProducts(req: Request): Promise<SellerProductListResponseDto> {
     const userId = this.getUserIdFromRequest(req);
     const sellerId = await this.getSellerIdForUser(userId);
 
@@ -539,10 +520,7 @@ export class SellersService {
     };
   }
 
-  async getSellerOrderDetail(
-    req: Request,
-    groupId: number,
-  ): Promise<SellerOrderDetailResponseDto> {
+  async getSellerOrderDetail(req: Request, groupId: number): Promise<SellerOrderDetailResponseDto> {
     const userId = this.getUserIdFromRequest(req);
     const sellerId = await this.getSellerIdForUser(userId);
 
@@ -597,8 +575,7 @@ export class SellersService {
             priceDelta: Number(opt.priceDelta),
           })),
         })),
-        shippingAddress:
-          group.order.shippingAddress as Record<string, unknown> | null,
+        shippingAddress: group.order.shippingAddress as Record<string, unknown> | null,
         statusLogs: group.statusLogs.map((log) => ({
           id: log.id,
           status: log.status,
@@ -624,9 +601,7 @@ export class SellersService {
 
     const totalOrders = groups.length;
     const pendingOrders = groups.filter((g) => g.status === 'PENDING').length;
-    const deliveredOrders = groups.filter(
-      (g) => g.status === 'DELIVERED',
-    ).length;
+    const deliveredOrders = groups.filter((g) => g.status === 'DELIVERED').length;
     const revenue = groups
       .filter((g) => g.status === 'DELIVERED')
       .reduce((sum, g) => sum + Number(g.subtotal), 0);

@@ -3,4 +3,5 @@ export type CreateOrderDto = {
   shippingFee?: number;
   paymentMethod?: string;
   shippingAddress?: Record<string, unknown>;
+  addressId?: number;
 };

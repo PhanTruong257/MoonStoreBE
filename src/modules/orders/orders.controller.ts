@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseIntPipe,
-  Patch,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { OrdersService } from './orders.service';
 import type {
@@ -24,10 +15,7 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
-  create(
-    @Req() req: Request,
-    @Body() payload: CreateOrderDto,
-  ): Promise<OrderCreateResponseDto> {
+  create(@Req() req: Request, @Body() payload: CreateOrderDto): Promise<OrderCreateResponseDto> {
     return this.ordersService.createOrder(req, payload);
   }
 
@@ -39,7 +27,7 @@ export class OrdersController {
   @Get(':id')
   findOne(
     @Req() req: Request,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseIntPipe) id: number
   ): Promise<OrderDetailResponseDto> {
     return this.ordersService.getOrderDetail(req, id);
   }
@@ -48,7 +36,7 @@ export class OrdersController {
   updateGroupStatus(
     @Req() req: Request,
     @Param('groupId', ParseIntPipe) groupId: number,
-    @Body() payload: UpdateOrderGroupStatusDto,
+    @Body() payload: UpdateOrderGroupStatusDto
   ): Promise<OrderGroupStatusResponseDto> {
     return this.ordersService.updateGroupStatus(req, groupId, payload);
   }
@@ -56,7 +44,7 @@ export class OrdersController {
   @Patch('groups/:groupId/cancel')
   cancelGroup(
     @Req() req: Request,
-    @Param('groupId', ParseIntPipe) groupId: number,
+    @Param('groupId', ParseIntPipe) groupId: number
   ): Promise<OrderGroupStatusResponseDto> {
     return this.ordersService.cancelGroup(req, groupId);
   }

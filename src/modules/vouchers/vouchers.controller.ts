@@ -17,16 +17,12 @@ export class VouchersController {
   }
 
   @Post('validate')
-  validate(
-    @Body() payload: ValidateVoucherDto,
-  ): Promise<VoucherValidateResponseDto> {
+  validate(@Body() payload: ValidateVoucherDto): Promise<VoucherValidateResponseDto> {
     return this.vouchersService.validateVoucher(payload);
   }
 
   @Get(':id')
-  findOne(
-    @Param('id', ParseIntPipe) id: number,
-  ): VouchersModuleDetailResponseDto {
+  findOne(@Param('id', ParseIntPipe) id: number): VouchersModuleDetailResponseDto {
     return this.vouchersService.findOne(id);
   }
 }

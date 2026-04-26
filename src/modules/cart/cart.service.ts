@@ -38,10 +38,7 @@ export class CartService {
     );
   }
 
-  private async validateOptionsBelongToProduct(
-    productId: number,
-    optionIds: number[],
-  ) {
+  private async validateOptionsBelongToProduct(productId: number, optionIds: number[]) {
     if (optionIds.length === 0) {
       return;
     }
@@ -55,9 +52,7 @@ export class CartService {
       throw new BadRequestException('One or more options not found.');
     }
 
-    const wrong = options.find(
-      (option) => option.group.productId !== productId,
-    );
+    const wrong = options.find((option) => option.group.productId !== productId);
     if (wrong) {
       throw new BadRequestException('Selected option is not valid for product.');
     }
@@ -80,8 +75,7 @@ export class CartService {
   }
 
   async addItem(payload: AddToCartDto): Promise<CartAddItemResponseDto> {
-    const quantity =
-      payload.quantity && payload.quantity > 0 ? payload.quantity : 1;
+    const quantity = payload.quantity && payload.quantity > 0 ? payload.quantity : 1;
     const userId = await this.resolveUserId(payload.userId);
     const cart = await this.getOrCreateCart(userId);
 
@@ -97,9 +91,7 @@ export class CartService {
       .filter((id) => Number.isFinite(id))
       .map((id) => Number(id));
     await this.validateOptionsBelongToProduct(product.id, optionIds);
-    const dedupedOptionIds = Array.from(new Set(optionIds)).sort(
-      (a, b) => a - b,
-    );
+    const dedupedOptionIds = Array.from(new Set(optionIds)).sort((a, b) => a - b);
 
     const existingItems = await this.prisma.cartItem.findMany({
       where: { cartId: cart.id, productId: product.id },
@@ -107,9 +99,7 @@ export class CartService {
     });
 
     const matched = existingItems.find((item) => {
-      const ids = item.selectedOptions
-        .map((entry) => entry.optionId)
-        .sort((a, b) => a - b);
+      const ids = item.selectedOptions.map((entry) => entry.optionId).sort((a, b) => a - b);
       if (ids.length !== dedupedOptionIds.length) {
         return false;
       }
@@ -177,7 +167,7 @@ export class CartService {
       items: items.map((item) => {
         const optionsTotal = item.selectedOptions.reduce(
           (sum, entry) => sum + Number(entry.option.priceDelta),
-          0,
+          0
         );
         const unitPrice = Number(item.product.basePrice) + optionsTotal;
 
@@ -203,10 +193,7 @@ export class CartService {
     };
   }
 
-  async updateItemQuantity(
-    itemId: number,
-    quantity: number,
-  ): Promise<CartUpdateItemResponseDto> {
+  async updateItemQuantity(itemId: number, quantity: number): Promise<CartUpdateItemResponseDto> {
     if (!quantity || quantity < 1) {
       throw new BadRequestException('Quantity must be at least 1.');
     }

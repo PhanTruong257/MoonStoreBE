@@ -24,7 +24,7 @@ const DELIVERED_STATUS = 'DELIVERED';
 export class ReviewsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
+    private readonly jwtService: JwtService
   ) {}
 
   private getUserIdFromRequest(req: Request) {
@@ -72,9 +72,7 @@ export class ReviewsService {
 
     const totalReviews = reviews.length;
     const averageRating =
-      totalReviews > 0
-        ? reviews.reduce((sum, item) => sum + item.rating, 0) / totalReviews
-        : 0;
+      totalReviews > 0 ? reviews.reduce((sum, item) => sum + item.rating, 0) / totalReviews : 0;
 
     return {
       productId,
@@ -89,10 +87,7 @@ export class ReviewsService {
     };
   }
 
-  async getEligibility(
-    req: Request,
-    productId: number,
-  ): Promise<ReviewEligibilityResponseDto> {
+  async getEligibility(req: Request, productId: number): Promise<ReviewEligibilityResponseDto> {
     const userId = this.getUserIdFromRequest(req);
 
     const existing = await this.prisma.review.findFirst({
@@ -127,10 +122,7 @@ export class ReviewsService {
     };
   }
 
-  async createReview(
-    req: Request,
-    payload: CreateReviewDto,
-  ): Promise<CreateReviewResponseDto> {
+  async createReview(req: Request, payload: CreateReviewDto): Promise<CreateReviewResponseDto> {
     const userId = this.getUserIdFromRequest(req);
 
     if (!payload.productId || !Number.isFinite(payload.rating)) {
@@ -148,14 +140,9 @@ export class ReviewsService {
       throw new ConflictException('You have already reviewed this product.');
     }
 
-    const hasDelivered = await this.hasDeliveredOrderItem(
-      userId,
-      payload.productId,
-    );
+    const hasDelivered = await this.hasDeliveredOrderItem(userId, payload.productId);
     if (!hasDelivered) {
-      throw new ForbiddenException(
-        'You can only review products you have received.',
-      );
+      throw new ForbiddenException('You can only review products you have received.');
     }
 
     const review = await this.prisma.review.create({

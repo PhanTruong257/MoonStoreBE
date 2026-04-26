@@ -13,9 +13,7 @@ import type {
 export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async resolveCategoryFilterIds(
-    categoryId?: number,
-  ): Promise<number[] | undefined> {
+  private async resolveCategoryFilterIds(categoryId?: number): Promise<number[] | undefined> {
     if (!categoryId) {
       return undefined;
     }
@@ -57,6 +55,7 @@ export class CatalogService {
 
     const whereClause = {
       status: { in: ['active'] },
+      seller: { status: 'active' },
       ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
     };
 
@@ -98,8 +97,8 @@ export class CatalogService {
   }
 
   async getProductDetail(id: number): Promise<CatalogProductDetailResponseDto> {
-    const product = await this.prisma.product.findUnique({
-      where: { id },
+    const product = await this.prisma.product.findFirst({
+      where: { id, seller: { status: 'active' } },
       include: {
         category: { select: { id: true, name: true } },
         brand: { select: { id: true, name: true } },
@@ -119,9 +118,7 @@ export class CatalogService {
 
     const totalReviews = product.reviews.length;
     const averageRating =
-      totalReviews > 0
-        ? product.reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
-        : 0;
+      totalReviews > 0 ? product.reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews : 0;
 
     return {
       product: {

@@ -26,7 +26,7 @@ export class CatalogController {
   listProducts(
     @Query('categoryId') categoryIdRaw?: string,
     @Query('page') pageRaw?: string,
-    @Query('limit') limitRaw?: string,
+    @Query('limit') limitRaw?: string
   ): Promise<CatalogProductsResponseDto> {
     const categoryId = categoryIdRaw ? Number(categoryIdRaw) : undefined;
     const page = pageRaw ? Number(pageRaw) : 1;
@@ -40,16 +40,12 @@ export class CatalogController {
   }
 
   @Get('products/:id')
-  getProduct(
-    @Param('id', ParseIntPipe) id: number,
-  ): Promise<CatalogProductDetailResponseDto> {
+  getProduct(@Param('id', ParseIntPipe) id: number): Promise<CatalogProductDetailResponseDto> {
     return this.catalogService.getProductDetail(id);
   }
 
   @Get(':id')
-  findOne(
-    @Param('id', ParseIntPipe) id: number,
-  ): CatalogModuleDetailResponseDto {
+  findOne(@Param('id', ParseIntPipe) id: number): CatalogModuleDetailResponseDto {
     return this.catalogService.findOne(id);
   }
 }

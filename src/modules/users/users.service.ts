@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -15,12 +16,18 @@ import type {
   UsersModuleListResponseDto,
 } from './dto/users-response.dto';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
+import type {
+  CreateAddressDto,
+  UpdateAddressDto,
+  UserAddressListResponseDto,
+  UserAddressResponseDto,
+} from './dto/address.dto';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
+    private readonly jwtService: JwtService
   ) {}
 
   private getUserIdFromRequest(req: Request) {
@@ -147,5 +154,157 @@ export class UsersService {
     }
 
     return { user, address: updatedAddress };
+  }
+
+  async listAddresses(req: Request): Promise<UserAddressListResponseDto> {
+    const userId = this.getUserIdFromRequest(req);
+
+    const addresses = await this.prisma.userAddress.findMany({
+      where: { userId },
+      orderBy: [{ isDefault: 'desc' }, { id: 'desc' }],
+    });
+
+    return { addresses };
+  }
+
+  async createAddress(req: Request, payload: CreateAddressDto): Promise<UserAddressResponseDto> {
+    const userId = this.getUserIdFromRequest(req);
+
+    const addressLine = payload.addressLine?.trim();
+    const city = payload.city?.trim();
+    const district = payload.district?.trim();
+    if (!addressLine || !city || !district) {
+      throw new BadRequestException('addressLine, city and district are required.');
+    }
+
+    const wantDefault = payload.isDefault ?? false;
+    const existingCount = await this.prisma.userAddress.count({
+      where: { userId },
+    });
+    const shouldBeDefault = wantDefault || existingCount === 0;
+
+    const address = await this.prisma.$transaction(async (tx) => {
+      if (shouldBeDefault) {
+        await tx.userAddress.updateMany({
+          where: { userId },
+          data: { isDefault: false },
+        });
+      }
+      return tx.userAddress.create({
+        data: {
+          userId,
+          addressLine,
+          city,
+          district,
+          isDefault: shouldBeDefault,
+        },
+      });
+    });
+
+    return { address };
+  }
+
+  async updateAddress(
+    req: Request,
+    addressId: number,
+    payload: UpdateAddressDto
+  ): Promise<UserAddressResponseDto> {
+    const userId = this.getUserIdFromRequest(req);
+
+    const existing = await this.prisma.userAddress.findUnique({
+      where: { id: addressId },
+    });
+    if (!existing || existing.userId !== userId) {
+      throw new NotFoundException('Address not found.');
+    }
+
+    const addressLine = payload.addressLine?.trim();
+    const city = payload.city?.trim();
+    const district = payload.district?.trim();
+
+    const address = await this.prisma.$transaction(async (tx) => {
+      if (payload.isDefault === true) {
+        await tx.userAddress.updateMany({
+          where: { userId, NOT: { id: addressId } },
+          data: { isDefault: false },
+        });
+      }
+
+      return tx.userAddress.update({
+        where: { id: addressId },
+        data: {
+          ...(addressLine !== undefined ? { addressLine } : {}),
+          ...(city !== undefined ? { city } : {}),
+          ...(district !== undefined ? { district } : {}),
+          ...(payload.isDefault !== undefined ? { isDefault: payload.isDefault } : {}),
+        },
+      });
+    });
+
+    return { address };
+  }
+
+  async deleteAddress(req: Request, addressId: number): Promise<{ id: number }> {
+    const userId = this.getUserIdFromRequest(req);
+
+    const existing = await this.prisma.userAddress.findUnique({
+      where: { id: addressId },
+    });
+    if (!existing || existing.userId !== userId) {
+      throw new NotFoundException('Address not found.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userAddress.delete({ where: { id: addressId } });
+
+      if (existing.isDefault) {
+        const next = await tx.userAddress.findFirst({
+          where: { userId },
+          orderBy: { id: 'desc' },
+        });
+        if (next) {
+          await tx.userAddress.update({
+            where: { id: next.id },
+            data: { isDefault: true },
+          });
+        }
+      }
+    });
+
+    return { id: addressId };
+  }
+
+  async setDefaultAddress(req: Request, addressId: number): Promise<UserAddressResponseDto> {
+    const userId = this.getUserIdFromRequest(req);
+
+    const existing = await this.prisma.userAddress.findUnique({
+      where: { id: addressId },
+    });
+    if (!existing || existing.userId !== userId) {
+      throw new NotFoundException('Address not found.');
+    }
+
+    const address = await this.prisma.$transaction(async (tx) => {
+      await tx.userAddress.updateMany({
+        where: { userId },
+        data: { isDefault: false },
+      });
+      return tx.userAddress.update({
+        where: { id: addressId },
+        data: { isDefault: true },
+      });
+    });
+
+    return { address };
+  }
+
+  async getAddressForUser(userId: number, addressId: number) {
+    const address = await this.prisma.userAddress.findUnique({
+      where: { id: addressId },
+    });
+    if (!address || address.userId !== userId) {
+      return null;
+    }
+    return address;
   }
 }

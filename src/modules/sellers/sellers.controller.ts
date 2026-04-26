@@ -41,7 +41,7 @@ export class SellersController {
   @Post('register')
   createSeller(
     @Req() req: Request,
-    @Body() payload: CreateSellerDto,
+    @Body() payload: CreateSellerDto
   ): Promise<CreateSellerResponseDto> {
     return this.sellersService.createSellerProfile(req, payload);
   }
@@ -54,7 +54,7 @@ export class SellersController {
   @Patch('me/profile')
   updateMyProfile(
     @Req() req: Request,
-    @Body() payload: UpdateSellerProfileDto,
+    @Body() payload: UpdateSellerProfileDto
   ): Promise<SellerProfileMeResponseDto> {
     return this.sellersService.updateMyProfile(req, payload);
   }
@@ -62,7 +62,7 @@ export class SellersController {
   @Post('products')
   createProduct(
     @Req() req: Request,
-    @Body() payload: CreateProductDto,
+    @Body() payload: CreateProductDto
   ): Promise<CreateProductResponseDto> {
     return this.sellersService.createProduct(req, payload);
   }
@@ -70,7 +70,7 @@ export class SellersController {
   @Get('products/:productId/detail')
   getProductDetail(
     @Req() req: Request,
-    @Param('productId', ParseIntPipe) productId: number,
+    @Param('productId', ParseIntPipe) productId: number
   ): Promise<CreateProductResponseDto> {
     return this.sellersService.getSellerProductDetail(req, productId);
   }
@@ -79,7 +79,7 @@ export class SellersController {
   updateProduct(
     @Req() req: Request,
     @Param('productId', ParseIntPipe) productId: number,
-    @Body() payload: UpdateSellerProductDto,
+    @Body() payload: UpdateSellerProductDto
   ): Promise<CreateProductResponseDto> {
     return this.sellersService.updateSellerProduct(req, productId, payload);
   }
@@ -87,7 +87,7 @@ export class SellersController {
   @Delete('products/:productId')
   deleteProduct(
     @Req() req: Request,
-    @Param('productId', ParseIntPipe) productId: number,
+    @Param('productId', ParseIntPipe) productId: number
   ): Promise<{ id: number; status: string }> {
     return this.sellersService.deleteSellerProduct(req, productId);
   }
@@ -105,7 +105,7 @@ export class SellersController {
   @Get('me/orders/:groupId')
   findMyOrderDetail(
     @Req() req: Request,
-    @Param('groupId', ParseIntPipe) groupId: number,
+    @Param('groupId', ParseIntPipe) groupId: number
   ): Promise<SellerOrderDetailResponseDto> {
     return this.sellersService.getSellerOrderDetail(req, groupId);
   }
@@ -116,9 +116,7 @@ export class SellersController {
   }
 
   @Get(':id')
-  findOne(
-    @Param('id', ParseIntPipe) id: number,
-  ): SellersModuleDetailResponseDto {
+  findOne(@Param('id', ParseIntPipe) id: number): SellersModuleDetailResponseDto {
     return this.sellersService.findOne(id);
   }
 }

@@ -23,7 +23,7 @@ import type { RejectSellerDto } from './dto/reject-seller.dto';
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
+    private readonly jwtService: JwtService
   ) {}
 
   private async assertAdmin(req: Request): Promise<number> {
@@ -32,10 +32,7 @@ export class AdminService {
     return userId;
   }
 
-  async listUsers(
-    req: Request,
-    role?: string,
-  ): Promise<AdminUserListResponseDto> {
+  async listUsers(req: Request, role?: string): Promise<AdminUserListResponseDto> {
     await this.assertAdmin(req);
 
     const users = await this.prisma.user.findMany({
@@ -65,10 +62,7 @@ export class AdminService {
     };
   }
 
-  async listSellers(
-    req: Request,
-    status?: string,
-  ): Promise<AdminSellerListResponseDto> {
+  async listSellers(req: Request, status?: string): Promise<AdminSellerListResponseDto> {
     await this.assertAdmin(req);
 
     const sellers = await this.prisma.seller.findMany({
@@ -100,10 +94,7 @@ export class AdminService {
     };
   }
 
-  async approveSeller(
-    req: Request,
-    sellerId: number,
-  ): Promise<AdminSellerActionResponseDto> {
+  async approveSeller(req: Request, sellerId: number): Promise<AdminSellerActionResponseDto> {
     await this.assertAdmin(req);
 
     const seller = await this.prisma.seller.findUnique({
@@ -156,7 +147,7 @@ export class AdminService {
   async rejectSeller(
     req: Request,
     sellerId: number,
-    payload: RejectSellerDto,
+    payload: RejectSellerDto
   ): Promise<AdminSellerActionResponseDto> {
     await this.assertAdmin(req);
 
@@ -203,10 +194,7 @@ export class AdminService {
     };
   }
 
-  async promoteToAdmin(
-    req: Request,
-    userId: number,
-  ): Promise<AdminPromoteAdminResponseDto> {
+  async promoteToAdmin(req: Request, userId: number): Promise<AdminPromoteAdminResponseDto> {
     await this.assertAdmin(req);
 
     const target = await this.prisma.user.findUnique({
@@ -250,14 +238,112 @@ export class AdminService {
   async getStats(req: Request): Promise<AdminStatsResponseDto> {
     await this.assertAdmin(req);
 
-    const [totalUsers, totalSellers, pendingSellers, totalAdmins] =
-      await Promise.all([
-        this.prisma.user.count(),
-        this.prisma.seller.count({ where: { status: 'active' } }),
-        this.prisma.seller.count({ where: { status: 'pending' } }),
-        this.prisma.user.count({ where: { role: 'admin' } }),
-      ]);
+    const [totalUsers, totalSellers, pendingSellers, totalAdmins] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.seller.count({ where: { status: 'active' } }),
+      this.prisma.seller.count({ where: { status: 'pending' } }),
+      this.prisma.user.count({ where: { role: 'admin' } }),
+    ]);
 
     return { totalUsers, totalSellers, pendingSellers, totalAdmins };
+  }
+
+  async setUserStatus(
+    req: Request,
+    userId: number,
+    nextStatus: 'active' | 'disabled'
+  ): Promise<AdminPromoteAdminResponseDto> {
+    const adminUserId = await this.assertAdmin(req);
+
+    if (adminUserId === userId) {
+      throw new BadRequestException('You cannot disable yourself.');
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, status: true },
+    });
+    if (!target) {
+      throw new NotFoundException('User not found.');
+    }
+    if (target.status === nextStatus) {
+      throw new BadRequestException(`User is already ${nextStatus}.`);
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: nextStatus },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        phone: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      user: {
+        id: updated.id,
+        email: updated.email,
+        fullName: updated.fullName,
+        phone: updated.phone,
+        role: updated.role,
+        status: updated.status,
+        createdAt: updated.createdAt.toISOString(),
+      },
+    };
+  }
+
+  async setSellerStatus(
+    req: Request,
+    sellerId: number,
+    nextStatus: 'active' | 'disabled'
+  ): Promise<AdminSellerActionResponseDto> {
+    await this.assertAdmin(req);
+
+    const seller = await this.prisma.seller.findUnique({
+      where: { id: sellerId },
+      select: { id: true, status: true },
+    });
+    if (!seller) {
+      throw new NotFoundException('Seller not found.');
+    }
+    if (seller.status === nextStatus) {
+      throw new BadRequestException(`Seller is already ${nextStatus}.`);
+    }
+    if (seller.status === 'pending' || seller.status === 'rejected') {
+      throw new BadRequestException('Use approve/reject endpoints for pending/rejected sellers.');
+    }
+
+    const updated = await this.prisma.seller.update({
+      where: { id: sellerId },
+      data: { status: nextStatus },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            phone: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    return {
+      seller: {
+        id: updated.id,
+        userId: updated.userId,
+        shopName: updated.shopName,
+        description: updated.description,
+        status: updated.status,
+        rejectReason: updated.rejectReason,
+        user: updated.user,
+      },
+    };
   }
 }
