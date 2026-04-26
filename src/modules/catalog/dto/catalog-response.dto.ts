@@ -8,13 +8,6 @@ export type CatalogCategoriesResponseDto = {
   categories: CatalogCategoryDto[];
 };
 
-export type CatalogSkuSummaryDto = {
-  id: number;
-  price: number;
-  stock: number;
-  imageUrl: string;
-};
-
 export type CatalogProductListItemDto = {
   id: number;
   name: string;
@@ -24,7 +17,9 @@ export type CatalogProductListItemDto = {
   categoryName: string;
   brandId: number;
   brandName: string;
-  defaultSku: CatalogSkuSummaryDto | null;
+  basePrice: number;
+  stock: number;
+  imageUrl: string;
 };
 
 export type CatalogProductsResponseDto = {
@@ -36,25 +31,19 @@ export type CatalogProductsResponseDto = {
 };
 
 export type CatalogOptionDto = {
-  value: string;
+  id: number;
+  name: string;
+  priceDelta: number;
+  position: number;
 };
 
 export type CatalogOptionGroupDto = {
-  name: string;
-  options: CatalogOptionDto[];
-};
-
-export type CatalogSkuAttributeDto = {
-  name: string;
-  value: string;
-};
-
-export type CatalogSkuDetailDto = {
   id: number;
-  price: number;
-  stock: number;
-  imageUrl: string;
-  attributes: CatalogSkuAttributeDto[];
+  name: string;
+  position: number;
+  required: boolean;
+  multiSelect: boolean;
+  options: CatalogOptionDto[];
 };
 
 export type CatalogProductDetailDto = {
@@ -66,7 +55,11 @@ export type CatalogProductDetailDto = {
   categoryName: string;
   brandId: number;
   brandName: string;
-  skus: CatalogSkuDetailDto[];
+  basePrice: number;
+  stock: number;
+  imageUrl: string;
+  averageRating: number;
+  totalReviews: number;
   optionGroups: CatalogOptionGroupDto[];
 };
 

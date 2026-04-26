@@ -30,39 +30,39 @@ model User {
 }
 
 model UserAddress {
-  id          Int    @id @default(autoincrement())
-  userId      Int    @map("user_id")
-  addressLine String @map("address_line")
+  id          Int     @id @default(autoincrement())
+  userId      Int     @map("user_id")
+  addressLine String  @map("address_line")
   city        String
   district    String
   isDefault   Boolean @default(false) @map("is_default")
-  user        User   @relation(fields: [userId], references: [id])
+  user        User    @relation(fields: [userId], references: [id])
 
   @@map("user_addresses")
 }
 
 model Seller {
-  id              Int            @id @default(autoincrement())
-  userId          Int            @unique @map("user_id")
-  shopName        String         @map("shop_name")
-  description     String?
-  rating          Float          @default(0)
-  status          String
-  user            User           @relation(fields: [userId], references: [id])
-  products        Product[]
-  orderGroups     OrderGroup[]
-  conversations   Conversation[]
+  id            Int            @id @default(autoincrement())
+  userId        Int            @unique @map("user_id")
+  shopName      String         @map("shop_name")
+  description   String?
+  rating        Float          @default(0)
+  status        String
+  user          User           @relation(fields: [userId], references: [id])
+  products      Product[]
+  orderGroups   OrderGroup[]
+  conversations Conversation[]
 
   @@map("sellers")
 }
 
 model Category {
-  id        Int        @id @default(autoincrement())
-  name      String
-  parentId  Int?       @map("parent_id")
-  parent    Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
-  children  Category[] @relation("CategoryChildren")
-  products  Product[]
+  id       Int        @id @default(autoincrement())
+  name     String
+  parentId Int?       @map("parent_id")
+  parent   Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryChildren")
+  products Product[]
 
   @@map("categories")
 }
@@ -76,97 +76,102 @@ model Brand {
 }
 
 model Product {
-  id                 Int                @id @default(autoincrement())
-  sellerId           Int                @map("seller_id")
-  name               String
-  description        String?
-  categoryId         Int                @map("category_id")
-  brandId            Int                @map("brand_id")
-  status             String
-  seller             Seller             @relation(fields: [sellerId], references: [id])
-  category           Category           @relation(fields: [categoryId], references: [id])
-  brand              Brand              @relation(fields: [brandId], references: [id])
-  skus               ProductSku[]
-  reviews            Review[]
-  embeddings         ProductEmbedding[]
-  conversations      Conversation[]
+  id            Int                @id @default(autoincrement())
+  sellerId      Int                @map("seller_id")
+  name          String
+  description   String?
+  categoryId    Int                @map("category_id")
+  brandId       Int                @map("brand_id")
+  basePrice     Decimal            @map("base_price") @db.Decimal(12, 2)
+  stock         Int                @default(0)
+  imageUrl      String             @map("image_url")
+  status        String
+  seller        Seller             @relation(fields: [sellerId], references: [id])
+  category      Category           @relation(fields: [categoryId], references: [id])
+  brand         Brand              @relation(fields: [brandId], references: [id])
+  optionGroups  OptionGroup[]
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+  reviews       Review[]
+  embeddings    ProductEmbedding[]
+  conversations Conversation[]
 
   @@map("products")
 }
 
-model Attribute {
-  id              Int              @id @default(autoincrement())
-  name            String
-  attributeValues AttributeValue[]
+model OptionGroup {
+  id          Int      @id @default(autoincrement())
+  productId   Int      @map("product_id")
+  name        String
+  position    Int      @default(0)
+  required    Boolean  @default(true)
+  multiSelect Boolean  @default(false) @map("multi_select")
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  options     Option[]
 
-  @@map("attributes")
+  @@map("option_groups")
 }
 
-model AttributeValue {
-  id                 Int                 @id @default(autoincrement())
-  attributeId        Int                 @map("attribute_id")
-  value              String
-  attribute          Attribute           @relation(fields: [attributeId], references: [id])
-  skuAttributeValues SkuAttributeValue[]
+model Option {
+  id               Int               @id @default(autoincrement())
+  groupId          Int               @map("group_id")
+  name             String
+  priceDelta       Decimal           @default(0) @map("price_delta") @db.Decimal(12, 2)
+  position         Int               @default(0)
+  group            OptionGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  cartItemOptions  CartItemOption[]
+  orderItemOptions OrderItemOption[]
 
-  @@map("attribute_values")
-}
-
-model ProductSku {
-  id                 Int                 @id @default(autoincrement())
-  productId          Int                 @map("product_id")
-  skuCode            String              @map("sku_code")
-  price              Decimal             @db.Decimal(12, 2)
-  stock              Int
-  imageUrl           String              @map("image_url")
-  product            Product             @relation(fields: [productId], references: [id])
-  skuAttributeValues SkuAttributeValue[]
-  cartItems          CartItem[]
-  orderItems         OrderItem[]
-
-  @@map("product_skus")
-}
-
-model SkuAttributeValue {
-  skuId              Int            @map("sku_id")
-  attributeValueId   Int            @map("attribute_value_id")
-  sku                ProductSku     @relation(fields: [skuId], references: [id])
-  attributeValue     AttributeValue @relation(fields: [attributeValueId], references: [id])
-
-  @@id([skuId, attributeValueId])
-  @@map("sku_attribute_values")
+  @@map("options")
 }
 
 model Cart {
-  id       Int        @id @default(autoincrement())
-  userId   Int        @map("user_id")
-  user     User       @relation(fields: [userId], references: [id])
-  items    CartItem[]
+  id     Int        @id @default(autoincrement())
+  userId Int        @map("user_id")
+  user   User       @relation(fields: [userId], references: [id])
+  items  CartItem[]
 
   @@map("carts")
 }
 
 model CartItem {
-  id        Int        @id @default(autoincrement())
-  cartId    Int        @map("cart_id")
-  skuId     Int        @map("sku_id")
-  quantity  Int
-  cart      Cart       @relation(fields: [cartId], references: [id])
-  sku       ProductSku @relation(fields: [skuId], references: [id])
+  id              Int              @id @default(autoincrement())
+  cartId          Int              @map("cart_id")
+  productId       Int              @map("product_id")
+  quantity        Int
+  cart            Cart             @relation(fields: [cartId], references: [id])
+  product         Product          @relation(fields: [productId], references: [id])
+  selectedOptions CartItemOption[]
 
   @@map("cart_items")
 }
 
+model CartItemOption {
+  cartItemId Int      @map("cart_item_id")
+  optionId   Int      @map("option_id")
+  cartItem   CartItem @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  option     Option   @relation(fields: [optionId], references: [id])
+
+  @@id([cartItemId, optionId])
+  @@map("cart_item_options")
+}
+
 model Order {
-  id              Int               @id @default(autoincrement())
-  userId          Int               @map("user_id")
-  totalAmount     Decimal           @map("total_amount") @db.Decimal(12, 2)
+  id              Int            @id @default(autoincrement())
+  userId          Int            @map("user_id")
+  voucherId       Int?           @map("voucher_id")
+  totalAmount     Decimal        @map("total_amount") @db.Decimal(12, 2)
+  shippingFee     Decimal        @map("shipping_fee") @db.Decimal(12, 2)
+  discountAmount  Decimal        @map("discount_amount") @db.Decimal(12, 2)
+  finalAmount     Decimal        @map("final_amount") @db.Decimal(12, 2)
+  paymentMethod   String         @map("payment_method")
   status          String
-  paymentStatus   String            @map("payment_status")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  user            User              @relation(fields: [userId], references: [id])
+  paymentStatus   String         @map("payment_status")
+  shippingAddress Json?          @map("shipping_address")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  user            User           @relation(fields: [userId], references: [id])
+  voucher         Voucher?       @relation(fields: [voucherId], references: [id])
   orderGroups     OrderGroup[]
-  statusLogs      OrderStatusLog[]
   payments        Payment[]
   voucherUsages   VoucherUsage[]
   conversations   Conversation[]
@@ -175,41 +180,59 @@ model Order {
 }
 
 model OrderGroup {
-  id           Int         @id @default(autoincrement())
-  orderId      Int         @map("order_id")
-  sellerId     Int         @map("seller_id")
-  subtotal     Decimal     @db.Decimal(12, 2)
-  shippingFee  Decimal     @map("shipping_fee") @db.Decimal(12, 2)
-  status       String
-  order        Order       @relation(fields: [orderId], references: [id])
-  seller       Seller      @relation(fields: [sellerId], references: [id])
-  items        OrderItem[]
-  shipments    Shipment[]
+  id          Int              @id @default(autoincrement())
+  orderId     Int              @map("order_id")
+  sellerId    Int              @map("seller_id")
+  subtotal    Decimal          @db.Decimal(12, 2)
+  shippingFee Decimal          @map("shipping_fee") @db.Decimal(12, 2)
+  status      String
+  order       Order            @relation(fields: [orderId], references: [id])
+  seller      Seller           @relation(fields: [sellerId], references: [id])
+  items       OrderItem[]
+  shipments   Shipment[]
+  statusLogs  OrderStatusLog[]
 
   @@map("order_groups")
 }
 
 model OrderItem {
-  id            Int        @id @default(autoincrement())
-  orderGroupId  Int        @map("order_group_id")
-  skuId         Int        @map("sku_id")
-  productName   String     @map("product_name")
-  price         Decimal    @db.Decimal(12, 2)
-  quantity      Int
-  orderGroup    OrderGroup @relation(fields: [orderGroupId], references: [id])
-  sku           ProductSku @relation(fields: [skuId], references: [id])
-  refunds       Refund[]
+  id                 Int               @id @default(autoincrement())
+  orderGroupId       Int               @map("order_group_id")
+  productId          Int               @map("product_id")
+  productName        String            @map("product_name")
+  basePriceAtTime    Decimal           @map("base_price_at_time") @db.Decimal(12, 2)
+  optionsTotalAtTime Decimal           @default(0) @map("options_total_at_time") @db.Decimal(12, 2)
+  unitPriceAtTime    Decimal           @map("unit_price_at_time") @db.Decimal(12, 2)
+  imageUrlAtTime     String            @map("image_url_at_time")
+  quantity           Int
+  orderGroup         OrderGroup        @relation(fields: [orderGroupId], references: [id])
+  product            Product           @relation(fields: [productId], references: [id])
+  selectedOptions    OrderItemOption[]
+  refunds            Refund[]
 
   @@map("order_items")
 }
 
+model OrderItemOption {
+  id          Int       @id @default(autoincrement())
+  orderItemId Int       @map("order_item_id")
+  optionId    Int?      @map("option_id")
+  groupName   String    @map("group_name")
+  optionName  String    @map("option_name")
+  priceDelta  Decimal   @map("price_delta") @db.Decimal(12, 2)
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  option      Option?   @relation(fields: [optionId], references: [id])
+
+  @@map("order_item_options")
+}
+
 model OrderStatusLog {
-  id         Int      @id @default(autoincrement())
-  orderId    Int      @map("order_id")
-  status     String
-  note       String?
-  createdAt  DateTime @default(now()) @map("created_at")
-  order      Order    @relation(fields: [orderId], references: [id])
+  id           Int        @id @default(autoincrement())
+  orderGroupId Int        @map("order_group_id")
+  status       String
+  note         String?
+  createdAt    DateTime   @default(now()) @map("created_at")
+  orderGroup   OrderGroup @relation(fields: [orderGroupId], references: [id])
 
   @@map("order_status_logs")
 }
@@ -226,60 +249,60 @@ model Refund {
 }
 
 model Payment {
-  id            Int                  @id @default(autoincrement())
-  orderId       Int                  @map("order_id")
-  method        String
-  amount        Decimal              @db.Decimal(12, 2)
-  status        String
-  order         Order                @relation(fields: [orderId], references: [id])
-  transactions  PaymentTransaction[]
+  id           Int                  @id @default(autoincrement())
+  orderId      Int                  @map("order_id")
+  method       String
+  amount       Decimal              @db.Decimal(12, 2)
+  status       String
+  order        Order                @relation(fields: [orderId], references: [id])
+  transactions PaymentTransaction[]
 
   @@map("payments")
 }
 
 model PaymentTransaction {
-  id                Int      @id @default(autoincrement())
-  paymentId         Int      @map("payment_id")
-  transactionCode   String   @map("transaction_code")
-  gatewayResponse   String?  @map("gateway_response")
-  status            String
-  createdAt         DateTime @default(now()) @map("created_at")
-  payment           Payment  @relation(fields: [paymentId], references: [id])
+  id              Int      @id @default(autoincrement())
+  paymentId       Int      @map("payment_id")
+  transactionCode String   @map("transaction_code")
+  gatewayResponse String?  @map("gateway_response")
+  status          String
+  createdAt       DateTime @default(now()) @map("created_at")
+  payment         Payment  @relation(fields: [paymentId], references: [id])
 
   @@map("payment_transactions")
 }
 
 model Shipment {
-  id            Int           @id @default(autoincrement())
-  orderGroupId  Int           @map("order_group_id")
-  carrier       String
-  trackingCode  String        @map("tracking_code")
-  status        String
-  orderGroup    OrderGroup    @relation(fields: [orderGroupId], references: [id])
-  logs          ShipmentLog[]
+  id           Int           @id @default(autoincrement())
+  orderGroupId Int           @map("order_group_id")
+  carrier      String
+  trackingCode String        @map("tracking_code")
+  status       String
+  orderGroup   OrderGroup    @relation(fields: [orderGroupId], references: [id])
+  logs         ShipmentLog[]
 
   @@map("shipments")
 }
 
 model ShipmentLog {
-  id          Int       @id @default(autoincrement())
-  shipmentId  Int       @map("shipment_id")
-  status      String
-  location    String
-  timestamp   DateTime
-  shipment    Shipment  @relation(fields: [shipmentId], references: [id])
+  id         Int      @id @default(autoincrement())
+  shipmentId Int      @map("shipment_id")
+  status     String
+  location   String
+  timestamp  DateTime
+  shipment   Shipment @relation(fields: [shipmentId], references: [id])
 
   @@map("shipment_logs")
 }
 
 model Review {
-  id         Int      @id @default(autoincrement())
-  userId     Int      @map("user_id")
-  productId  Int      @map("product_id")
-  rating     Int
-  comment    String?
-  user       User     @relation(fields: [userId], references: [id])
-  product    Product  @relation(fields: [productId], references: [id])
+  id        Int     @id @default(autoincrement())
+  userId    Int     @map("user_id")
+  productId Int     @map("product_id")
+  rating    Int
+  comment   String?
+  user      User    @relation(fields: [userId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
 
   @@map("reviews")
 }
@@ -291,85 +314,86 @@ model Voucher {
   value        Decimal        @db.Decimal(12, 2)
   maxDiscount  Decimal?       @map("max_discount") @db.Decimal(12, 2)
   expiredAt    DateTime       @map("expired_at")
+  orders       Order[]
   usages       VoucherUsage[]
 
   @@map("vouchers")
 }
 
 model VoucherUsage {
-  id         Int      @id @default(autoincrement())
-  voucherId  Int      @map("voucher_id")
-  userId     Int      @map("user_id")
-  orderId    Int      @map("order_id")
-  voucher    Voucher  @relation(fields: [voucherId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
-  order      Order    @relation(fields: [orderId], references: [id])
+  id        Int     @id @default(autoincrement())
+  voucherId Int     @map("voucher_id")
+  userId    Int     @map("user_id")
+  orderId   Int     @map("order_id")
+  voucher   Voucher @relation(fields: [voucherId], references: [id])
+  user      User    @relation(fields: [userId], references: [id])
+  order     Order   @relation(fields: [orderId], references: [id])
 
   @@map("voucher_usages")
 }
 
 model ProductEmbedding {
-  id               Int      @id @default(autoincrement())
-  productId        Int      @map("product_id")
-  embeddingVector  String   @map("embedding_vector") @db.LongText
-  content          String?  @db.Text
-  product          Product  @relation(fields: [productId], references: [id])
+  id              Int     @id @default(autoincrement())
+  productId       Int     @map("product_id")
+  embeddingVector String  @map("embedding_vector") @db.LongText
+  content         String? @db.Text
+  product         Product @relation(fields: [productId], references: [id])
 
   @@map("product_embeddings")
 }
 
 model Conversation {
-  id           Int       @id @default(autoincrement())
-  buyerId      Int       @map("buyer_id")
-  sellerId     Int       @map("seller_id")
-  productId    Int?      @map("product_id")
-  orderId      Int?      @map("order_id")
-  status       String
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  buyer        User      @relation("ConversationBuyer", fields: [buyerId], references: [id])
-  seller       Seller    @relation(fields: [sellerId], references: [id])
-  product      Product?  @relation(fields: [productId], references: [id])
-  order        Order?    @relation(fields: [orderId], references: [id])
-  messages     Message[]
+  id        Int       @id @default(autoincrement())
+  buyerId   Int       @map("buyer_id")
+  sellerId  Int       @map("seller_id")
+  productId Int?      @map("product_id")
+  orderId   Int?      @map("order_id")
+  status    String
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  buyer     User      @relation("ConversationBuyer", fields: [buyerId], references: [id])
+  seller    Seller    @relation(fields: [sellerId], references: [id])
+  product   Product?  @relation(fields: [productId], references: [id])
+  order     Order?    @relation(fields: [orderId], references: [id])
+  messages  Message[]
 
   @@map("conversations")
 }
 
 model Message {
-  id            Int                  @id @default(autoincrement())
+  id             Int                 @id @default(autoincrement())
   conversationId Int                 @map("conversation_id")
-  senderId      Int                  @map("sender_id")
-  content       String               @db.Text
-  type          String
-  isDeleted     Boolean              @default(false) @map("is_deleted")
-  createdAt     DateTime             @default(now()) @map("created_at")
-  conversation  Conversation         @relation(fields: [conversationId], references: [id])
-  sender        User                 @relation("MessageSender", fields: [senderId], references: [id])
-  attachments   MessageAttachment[]
-  reads         MessageRead[]
+  senderId       Int                 @map("sender_id")
+  content        String              @db.Text
+  type           String
+  isDeleted      Boolean             @default(false) @map("is_deleted")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  conversation   Conversation        @relation(fields: [conversationId], references: [id])
+  sender         User                @relation("MessageSender", fields: [senderId], references: [id])
+  attachments    MessageAttachment[]
+  reads          MessageRead[]
 
   @@map("messages")
 }
 
 model MessageAttachment {
-  id         Int      @id @default(autoincrement())
-  messageId  Int      @map("message_id")
-  fileUrl    String   @map("file_url")
-  fileType   String   @map("file_type")
-  fileSize   Int      @map("file_size")
-  message    Message  @relation(fields: [messageId], references: [id])
+  id        Int     @id @default(autoincrement())
+  messageId Int     @map("message_id")
+  fileUrl   String  @map("file_url")
+  fileType  String  @map("file_type")
+  fileSize  Int     @map("file_size")
+  message   Message @relation(fields: [messageId], references: [id])
 
   @@map("message_attachments")
 }
 
 model MessageRead {
-  id         Int      @id @default(autoincrement())
-  messageId  Int      @map("message_id")
-  userId     Int      @map("user_id")
-  readAt     DateTime @default(now()) @map("read_at")
-  message    Message  @relation(fields: [messageId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
+  id        Int      @id @default(autoincrement())
+  messageId Int      @map("message_id")
+  userId    Int      @map("user_id")
+  readAt    DateTime @default(now()) @map("read_at")
+  message   Message  @relation(fields: [messageId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([messageId, userId])
   @@map("message_reads")

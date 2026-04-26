@@ -56,7 +56,7 @@ export class CatalogService {
     const categoryIds = await this.resolveCategoryFilterIds(params?.categoryId);
 
     const whereClause = {
-      status: 'active',
+      status: { in: ['active'] },
       ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
     };
 
@@ -66,11 +66,6 @@ export class CatalogService {
         include: {
           category: { select: { id: true, name: true } },
           brand: { select: { id: true, name: true } },
-          skus: {
-            select: { id: true, price: true, stock: true, imageUrl: true },
-            take: 1,
-            orderBy: { id: 'asc' },
-          },
         },
         orderBy: { id: 'asc' },
         skip: (page - 1) * limit,
@@ -95,12 +90,9 @@ export class CatalogService {
         categoryName: product.category.name,
         brandId: product.brandId,
         brandName: product.brand.name,
-        defaultSku: product.skus[0]
-          ? {
-              ...product.skus[0],
-              price: Number(product.skus[0].price),
-            }
-          : null,
+        basePrice: Number(product.basePrice),
+        stock: product.stock,
+        imageUrl: product.imageUrl,
       })),
     };
   }
@@ -111,17 +103,13 @@ export class CatalogService {
       include: {
         category: { select: { id: true, name: true } },
         brand: { select: { id: true, name: true } },
-        skus: {
+        optionGroups: {
+          orderBy: { position: 'asc' },
           include: {
-            skuAttributeValues: {
-              include: {
-                attributeValue: {
-                  include: { attribute: true },
-                },
-              },
-            },
+            options: { orderBy: { position: 'asc' } },
           },
         },
+        reviews: { select: { rating: true } },
       },
     });
 
@@ -129,24 +117,11 @@ export class CatalogService {
       throw new NotFoundException('Product not found.');
     }
 
-    const optionGroupsMap = new Map<string, Set<string>>();
-    for (const sku of product.skus) {
-      for (const item of sku.skuAttributeValues) {
-        const groupName = item.attributeValue.attribute.name;
-        const optionValue = item.attributeValue.value;
-        if (!optionGroupsMap.has(groupName)) {
-          optionGroupsMap.set(groupName, new Set<string>());
-        }
-        optionGroupsMap.get(groupName)?.add(optionValue);
-      }
-    }
-
-    const optionGroups = Array.from(optionGroupsMap.entries()).map(
-      ([name, values]) => ({
-        name,
-        options: Array.from(values).map((value) => ({ value })),
-      }),
-    );
+    const totalReviews = product.reviews.length;
+    const averageRating =
+      totalReviews > 0
+        ? product.reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
+        : 0;
 
     return {
       product: {
@@ -158,17 +133,24 @@ export class CatalogService {
         categoryName: product.category.name,
         brandId: product.brandId,
         brandName: product.brand.name,
-        skus: product.skus.map((sku) => ({
-          id: sku.id,
-          price: Number(sku.price),
-          stock: sku.stock,
-          imageUrl: sku.imageUrl,
-          attributes: sku.skuAttributeValues.map((item) => ({
-            name: item.attributeValue.attribute.name,
-            value: item.attributeValue.value,
+        basePrice: Number(product.basePrice),
+        stock: product.stock,
+        imageUrl: product.imageUrl,
+        averageRating: Math.round(averageRating * 10) / 10,
+        totalReviews,
+        optionGroups: product.optionGroups.map((group) => ({
+          id: group.id,
+          name: group.name,
+          position: group.position,
+          required: group.required,
+          multiSelect: group.multiSelect,
+          options: group.options.map((option) => ({
+            id: option.id,
+            name: option.name,
+            priceDelta: Number(option.priceDelta),
+            position: option.position,
           })),
         })),
-        optionGroups,
       },
     };
   }

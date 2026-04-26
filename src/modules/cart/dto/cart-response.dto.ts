@@ -10,23 +10,27 @@ export type CartModuleDetailResponseDto = {
   id: number;
 };
 
-export type CartSkuProductDto = {
-  id: number;
-  name: string;
+export type CartItemSelectedOptionDto = {
+  optionId: number;
+  groupName: string;
+  optionName: string;
+  priceDelta: number;
 };
 
-export type CartSkuDto = {
+export type CartItemProductDto = {
   id: number;
-  price: number;
+  name: string;
+  basePrice: number;
   stock: number;
   imageUrl: string;
-  product: CartSkuProductDto;
 };
 
 export type CartItemDto = {
   id: number;
   quantity: number;
-  sku: CartSkuDto;
+  unitPrice: number;
+  product: CartItemProductDto;
+  selectedOptions: CartItemSelectedOptionDto[];
 };
 
 export type CartResponseDto = {
@@ -38,7 +42,7 @@ export type CartResponseDto = {
 export type CartAddItemResponseDto = {
   cartId: number;
   itemId: number;
-  skuId: number;
+  productId: number;
   quantity: number;
 };
 

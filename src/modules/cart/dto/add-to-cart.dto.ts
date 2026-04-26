@@ -1,7 +1,6 @@
 export type AddToCartDto = {
   userId?: number;
-  skuId?: number;
-  productId?: number;
-  productName?: string;
+  productId: number;
+  optionIds?: number[];
   quantity?: number;
 };

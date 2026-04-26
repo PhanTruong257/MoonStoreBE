@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
@@ -21,15 +20,15 @@ export class CartService {
       return userId;
     }
 
-    const buyer = await this.prisma.user.findFirst({
-      where: { role: 'buyer' },
+    const fallback = await this.prisma.user.findFirst({
+      where: { role: 'user' },
       select: { id: true },
     });
-    if (!buyer) {
-      throw new BadRequestException('Buyer user not found.');
+    if (!fallback) {
+      throw new BadRequestException('User not found.');
     }
 
-    return buyer.id;
+    return fallback.id;
   }
 
   private async getOrCreateCart(userId: number) {
@@ -37,6 +36,31 @@ export class CartService {
       (await this.prisma.cart.findFirst({ where: { userId } })) ??
       (await this.prisma.cart.create({ data: { userId } }))
     );
+  }
+
+  private async validateOptionsBelongToProduct(
+    productId: number,
+    optionIds: number[],
+  ) {
+    if (optionIds.length === 0) {
+      return;
+    }
+
+    const options = await this.prisma.option.findMany({
+      where: { id: { in: optionIds } },
+      select: { id: true, group: { select: { productId: true } } },
+    });
+
+    if (options.length !== optionIds.length) {
+      throw new BadRequestException('One or more options not found.');
+    }
+
+    const wrong = options.find(
+      (option) => option.group.productId !== productId,
+    );
+    if (wrong) {
+      throw new BadRequestException('Selected option is not valid for product.');
+    }
   }
 
   findAll(): CartModuleListResponseDto {
@@ -61,91 +85,57 @@ export class CartService {
     const userId = await this.resolveUserId(payload.userId);
     const cart = await this.getOrCreateCart(userId);
 
-    let sku = payload.skuId
-      ? await this.prisma.productSku.findUnique({
-          where: { id: payload.skuId },
-        })
-      : null;
-
-    if (!sku && payload.productId) {
-      sku = await this.prisma.productSku.findFirst({
-        where: { productId: payload.productId },
-      });
+    const product = await this.prisma.product.findUnique({
+      where: { id: payload.productId },
+      select: { id: true },
+    });
+    if (!product) {
+      throw new BadRequestException('Product not found.');
     }
 
-    if (!sku && payload.productName) {
-      const product = await this.prisma.product.findFirst({
-        where: { name: payload.productName },
-      });
+    const optionIds = (payload.optionIds ?? [])
+      .filter((id) => Number.isFinite(id))
+      .map((id) => Number(id));
+    await this.validateOptionsBelongToProduct(product.id, optionIds);
+    const dedupedOptionIds = Array.from(new Set(optionIds)).sort(
+      (a, b) => a - b,
+    );
 
-      if (product) {
-        sku = await this.prisma.productSku.findFirst({
-          where: { productId: product.id },
-        });
-      }
-
-      if (!sku) {
-        const seller = await this.prisma.seller.findFirst({
-          select: { id: true },
-        });
-        if (!seller) {
-          throw new BadRequestException('No seller available.');
-        }
-
-        const category =
-          (await this.prisma.category.findFirst({
-            where: { name: 'General' },
-          })) ??
-          (await this.prisma.category.create({ data: { name: 'General' } }));
-
-        const brand =
-          (await this.prisma.brand.findFirst({ where: { name: 'General' } })) ??
-          (await this.prisma.brand.create({ data: { name: 'General' } }));
-
-        const createdProduct = await this.prisma.product.create({
-          data: {
-            sellerId: seller.id,
-            name: payload.productName,
-            description: null,
-            categoryId: category.id,
-            brandId: brand.id,
-            status: 'active',
-          },
-        });
-
-        sku = await this.prisma.productSku.create({
-          data: {
-            productId: createdProduct.id,
-            skuCode: `GEN-${createdProduct.id}`,
-            price: new Prisma.Decimal(0),
-            stock: 100,
-            imageUrl: '/images/products/product-1.jpg',
-          },
-        });
-      }
-    }
-
-    if (!sku) {
-      throw new BadRequestException('SKU not found.');
-    }
-
-    const existingItem = await this.prisma.cartItem.findFirst({
-      where: { cartId: cart.id, skuId: sku.id },
+    const existingItems = await this.prisma.cartItem.findMany({
+      where: { cartId: cart.id, productId: product.id },
+      include: { selectedOptions: true },
     });
 
-    const item = existingItem
+    const matched = existingItems.find((item) => {
+      const ids = item.selectedOptions
+        .map((entry) => entry.optionId)
+        .sort((a, b) => a - b);
+      if (ids.length !== dedupedOptionIds.length) {
+        return false;
+      }
+      return ids.every((value, index) => value === dedupedOptionIds[index]);
+    });
+
+    const item = matched
       ? await this.prisma.cartItem.update({
-          where: { id: existingItem.id },
-          data: { quantity: existingItem.quantity + quantity },
+          where: { id: matched.id },
+          data: { quantity: matched.quantity + quantity },
         })
       : await this.prisma.cartItem.create({
-          data: { cartId: cart.id, skuId: sku.id, quantity },
+          data: {
+            cartId: cart.id,
+            productId: product.id,
+            quantity,
+            selectedOptions: {
+              create: dedupedOptionIds.map((optionId) => ({ optionId })),
+            },
+          },
         });
 
     return {
       cartId: cart.id,
       itemId: item.id,
-      skuId: sku.id,
+      productId: product.id,
       quantity: item.quantity,
     };
   }
@@ -156,9 +146,25 @@ export class CartService {
     const items = await this.prisma.cartItem.findMany({
       where: { cartId: cart.id },
       include: {
-        sku: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            basePrice: true,
+            stock: true,
+            imageUrl: true,
+          },
+        },
+        selectedOptions: {
           include: {
-            product: { select: { id: true, name: true } },
+            option: {
+              select: {
+                id: true,
+                name: true,
+                priceDelta: true,
+                group: { select: { name: true } },
+              },
+            },
           },
         },
       },
@@ -168,17 +174,32 @@ export class CartService {
     return {
       cartId: cart.id,
       userId: cart.userId,
-      items: items.map((item) => ({
-        id: item.id,
-        quantity: item.quantity,
-        sku: {
-          id: item.sku.id,
-          price: Number(item.sku.price),
-          stock: item.sku.stock,
-          imageUrl: item.sku.imageUrl,
-          product: item.sku.product,
-        },
-      })),
+      items: items.map((item) => {
+        const optionsTotal = item.selectedOptions.reduce(
+          (sum, entry) => sum + Number(entry.option.priceDelta),
+          0,
+        );
+        const unitPrice = Number(item.product.basePrice) + optionsTotal;
+
+        return {
+          id: item.id,
+          quantity: item.quantity,
+          unitPrice,
+          product: {
+            id: item.product.id,
+            name: item.product.name,
+            basePrice: Number(item.product.basePrice),
+            stock: item.product.stock,
+            imageUrl: item.product.imageUrl,
+          },
+          selectedOptions: item.selectedOptions.map((entry) => ({
+            optionId: entry.option.id,
+            groupName: entry.option.group.name,
+            optionName: entry.option.name,
+            priceDelta: Number(entry.option.priceDelta),
+          })),
+        };
+      }),
     };
   }
 

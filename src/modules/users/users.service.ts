@@ -7,6 +7,7 @@ import {
 import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 
+import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   UserProfileResponseDto,
@@ -15,34 +16,15 @@ import type {
 } from './dto/users-response.dto';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
 
-const ACCESS_COOKIE_NAME = 'access_token';
-
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
   ) {}
 
-  private getAccessSecret() {
-    return process.env.JWT_SECRET ?? 'dev-secret';
-  }
-
   private getUserIdFromRequest(req: Request) {
-    const cookies = req.cookies as Record<string, string> | undefined;
-    const token = cookies?.[ACCESS_COOKIE_NAME];
-    if (!token) {
-      throw new UnauthorizedException('Missing access token.');
-    }
-
-    try {
-      const payload = this.jwtService.verify<{ sub: number }>(token, {
-        secret: this.getAccessSecret(),
-      });
-      return payload.sub;
-    } catch {
-      throw new UnauthorizedException('Invalid access token.');
-    }
+    return extractUserIdFromRequest(req, this.jwtService);
   }
 
   findAll(): UsersModuleListResponseDto {

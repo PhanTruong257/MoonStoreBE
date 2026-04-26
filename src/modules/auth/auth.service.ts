@@ -8,6 +8,12 @@ import { JwtService } from '@nestjs/jwt';
 import { Response, Request } from 'express';
 import * as bcrypt from 'bcryptjs';
 
+import {
+  ACCESS_COOKIE_NAME,
+  REFRESH_COOKIE_NAME,
+  getAccessSecret,
+  getRefreshSecret,
+} from '../../common/auth/auth-token.helper';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   AuthLogoutResponseDto,
@@ -20,23 +26,12 @@ import { RegisterDto } from './dto/register.dto';
 const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL = '7d';
 
-const ACCESS_COOKIE_NAME = 'access_token';
-const REFRESH_COOKIE_NAME = 'refresh_token';
-
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
   ) {}
-
-  private getAccessSecret() {
-    return process.env.JWT_SECRET ?? 'dev-secret';
-  }
-
-  private getRefreshSecret() {
-    return process.env.JWT_REFRESH_SECRET ?? 'dev-refresh-secret';
-  }
 
   private getCookieOptions(maxAgeMs: number) {
     const isProduction = process.env.NODE_ENV === 'production';
@@ -64,12 +59,12 @@ export class AuthService {
     const payload = { sub: user.id, email: user.email, role: user.role };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: this.getAccessSecret(),
+      secret: getAccessSecret(),
       expiresIn: ACCESS_TOKEN_TTL,
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      secret: this.getRefreshSecret(),
+      secret: getRefreshSecret(),
       expiresIn: REFRESH_TOKEN_TTL,
     });
 
@@ -111,7 +106,7 @@ export class AuthService {
         password: hashedPassword,
         fullName,
         phone: payload.phone?.trim() ?? '',
-        role: 'buyer',
+        role: 'user',
         status: 'active',
       },
       select: {
@@ -174,7 +169,7 @@ export class AuthService {
         email: string;
         role: string;
       }>(token, {
-        secret: this.getAccessSecret(),
+        secret: getAccessSecret(),
       });
 
       const user = await this.prisma.user.findUnique({

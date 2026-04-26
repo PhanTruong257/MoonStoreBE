@@ -5,5 +5,6 @@ import { VouchersService } from './vouchers.service';
 @Module({
   controllers: [VouchersController],
   providers: [VouchersService],
+  exports: [VouchersService],
 })
 export class VouchersModule {}

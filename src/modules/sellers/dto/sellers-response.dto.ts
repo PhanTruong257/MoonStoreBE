@@ -22,6 +22,22 @@ export type CreateSellerResponseDto = {
   seller: SellerProfileDto;
 };
 
+export type SellerProductOptionDto = {
+  id: number;
+  name: string;
+  priceDelta: number;
+  position: number;
+};
+
+export type SellerProductOptionGroupDto = {
+  id: number;
+  name: string;
+  position: number;
+  required: boolean;
+  multiSelect: boolean;
+  options: SellerProductOptionDto[];
+};
+
 export type SellerProductDto = {
   id: number;
   sellerId: number;
@@ -30,18 +46,12 @@ export type SellerProductDto = {
   status: string;
   categoryId: number;
   brandId: number;
-};
-
-export type SellerProductSkuDto = {
-  id: number;
-  productId: number;
-  skuCode: string;
-  price: number;
+  basePrice: number;
   stock: number;
   imageUrl: string;
+  optionGroups: SellerProductOptionGroupDto[];
 };
 
 export type CreateProductResponseDto = {
   product: SellerProductDto;
-  sku: SellerProductSkuDto;
 };
