@@ -16,10 +16,15 @@ export type SellerProfileDto = {
   shopName: string;
   description: string | null;
   status: string;
+  rejectReason: string | null;
 };
 
 export type CreateSellerResponseDto = {
   seller: SellerProfileDto;
+};
+
+export type SellerProfileMeResponseDto = {
+  seller: SellerProfileDto | null;
 };
 
 export type SellerProductOptionDto = {

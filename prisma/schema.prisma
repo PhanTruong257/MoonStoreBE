@@ -48,6 +48,7 @@ model Seller {
   description   String?
   rating        Float          @default(0)
   status        String
+  rejectReason  String?        @map("reject_reason")
   user          User           @relation(fields: [userId], references: [id])
   products      Product[]
   orderGroups   OrderGroup[]

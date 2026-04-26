@@ -14,6 +14,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
 import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { SearchModule } from './modules/search/search.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ChatModule } from './modules/chat/chat.module';
     VouchersModule,
     SearchModule,
     ChatModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

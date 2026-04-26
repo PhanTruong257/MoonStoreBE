@@ -15,6 +15,7 @@ import type {
   CreateProductResponseDto,
   CreateSellerResponseDto,
   SellerProductOptionGroupDto,
+  SellerProfileMeResponseDto,
   SellersModuleDetailResponseDto,
   SellersModuleListResponseDto,
 } from './dto/sellers-response.dto';
@@ -23,6 +24,7 @@ import type {
   CreateProductOptionGroupDto,
 } from './dto/create-product.dto';
 import type { CreateSellerDto } from './dto/create-seller.dto';
+import type { UpdateSellerProfileDto } from './dto/update-seller-profile.dto';
 import type { UpdateSellerProductDto } from './dto/update-product.dto';
 import type {
   SellerOrderDetailResponseDto,
@@ -53,11 +55,11 @@ export class SellersService {
   private async getSellerIdForUser(userId: number) {
     const seller = await this.prisma.seller.findUnique({
       where: { userId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
 
-    if (!seller) {
-      throw new ForbiddenException('Seller profile not found.');
+    if (!seller || seller.status !== 'active') {
+      throw new ForbiddenException('Active seller profile not found.');
     }
 
     return seller.id;
@@ -159,58 +161,138 @@ export class SellersService {
   }
 
   async createSellerProfile(
+    req: Request,
     payload: CreateSellerDto,
   ): Promise<CreateSellerResponseDto> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.userId },
-      select: { id: true },
-    });
-    if (!user) {
-      throw new BadRequestException('User not found.');
+    const userId = this.getUserIdFromRequest(req);
+
+    if (!payload.shopName?.trim()) {
+      throw new BadRequestException('Shop name is required.');
     }
 
     const existing = await this.prisma.seller.findUnique({
-      where: { userId: payload.userId },
-      select: { id: true },
+      where: { userId },
+      select: { id: true, status: true },
     });
-    if (existing) {
-      throw new ConflictException('Seller profile already exists.');
+    if (existing && existing.status !== 'rejected') {
+      throw new ConflictException(
+        'Seller application already exists. Please wait for admin review.',
+      );
     }
 
-    const seller = await this.prisma.seller.create({
-      data: {
-        userId: payload.userId,
-        shopName: payload.shopName.trim(),
-        description: payload.description?.trim() ?? null,
-        status: 'active',
-      },
+    const data = {
+      shopName: payload.shopName.trim(),
+      description: payload.description?.trim() ?? null,
+      status: 'pending',
+      rejectReason: null,
+    };
+
+    const seller = existing
+      ? await this.prisma.seller.update({
+          where: { id: existing.id },
+          data,
+          select: {
+            id: true,
+            userId: true,
+            shopName: true,
+            description: true,
+            status: true,
+            rejectReason: true,
+          },
+        })
+      : await this.prisma.seller.create({
+          data: { userId, ...data },
+          select: {
+            id: true,
+            userId: true,
+            shopName: true,
+            description: true,
+            status: true,
+            rejectReason: true,
+          },
+        });
+
+    return { seller };
+  }
+
+  async getMyProfile(req: Request): Promise<SellerProfileMeResponseDto> {
+    const userId = this.getUserIdFromRequest(req);
+
+    const seller = await this.prisma.seller.findUnique({
+      where: { userId },
       select: {
         id: true,
         userId: true,
         shopName: true,
         description: true,
         status: true,
+        rejectReason: true,
       },
     });
 
-    await this.prisma.user.update({
-      where: { id: payload.userId },
-      data: { role: 'seller' },
+    return { seller };
+  }
+
+  async updateMyProfile(
+    req: Request,
+    payload: UpdateSellerProfileDto,
+  ): Promise<SellerProfileMeResponseDto> {
+    const userId = this.getUserIdFromRequest(req);
+
+    const existing = await this.prisma.seller.findUnique({
+      where: { userId },
+      select: { id: true, status: true },
+    });
+    if (!existing) {
+      throw new NotFoundException('Seller profile not found.');
+    }
+
+    if (existing.status === 'pending') {
+      throw new BadRequestException(
+        'Application is being reviewed and cannot be edited.',
+      );
+    }
+
+    const data: Prisma.SellerUpdateInput = {};
+    if (payload.shopName !== undefined) {
+      const trimmed = payload.shopName.trim();
+      if (!trimmed) {
+        throw new BadRequestException('Shop name cannot be empty.');
+      }
+      data.shopName = trimmed;
+    }
+    if (payload.description !== undefined) {
+      data.description = payload.description?.trim() ?? null;
+    }
+
+    if (existing.status === 'rejected') {
+      data.status = 'pending';
+      data.rejectReason = null;
+    }
+
+    const seller = await this.prisma.seller.update({
+      where: { id: existing.id },
+      data,
+      select: {
+        id: true,
+        userId: true,
+        shopName: true,
+        description: true,
+        status: true,
+        rejectReason: true,
+      },
     });
 
     return { seller };
   }
 
   async createProduct(
+    req: Request,
     payload: CreateProductDto,
   ): Promise<CreateProductResponseDto> {
-    const seller = await this.prisma.seller.findUnique({
-      where: { userId: payload.userId },
-      select: { id: true },
-    });
-    if (!seller) {
-      throw new BadRequestException('Seller profile not found.');
-    }
+    const userId = this.getUserIdFromRequest(req);
+    const sellerId = await this.getSellerIdForUser(userId);
+    const seller = { id: sellerId };
 
     const category = await this.prisma.category.findUnique({
       where: { id: payload.categoryId },

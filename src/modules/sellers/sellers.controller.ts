@@ -14,11 +14,13 @@ import { SellersService } from './sellers.service';
 import type {
   CreateProductResponseDto,
   CreateSellerResponseDto,
+  SellerProfileMeResponseDto,
   SellersModuleDetailResponseDto,
   SellersModuleListResponseDto,
 } from './dto/sellers-response.dto';
 import type { CreateProductDto } from './dto/create-product.dto';
 import type { CreateSellerDto } from './dto/create-seller.dto';
+import type { UpdateSellerProfileDto } from './dto/update-seller-profile.dto';
 import type { UpdateSellerProductDto } from './dto/update-product.dto';
 import type {
   SellerOrderDetailResponseDto,
@@ -38,16 +40,31 @@ export class SellersController {
 
   @Post('register')
   createSeller(
+    @Req() req: Request,
     @Body() payload: CreateSellerDto,
   ): Promise<CreateSellerResponseDto> {
-    return this.sellersService.createSellerProfile(payload);
+    return this.sellersService.createSellerProfile(req, payload);
+  }
+
+  @Get('me/profile')
+  getMyProfile(@Req() req: Request): Promise<SellerProfileMeResponseDto> {
+    return this.sellersService.getMyProfile(req);
+  }
+
+  @Patch('me/profile')
+  updateMyProfile(
+    @Req() req: Request,
+    @Body() payload: UpdateSellerProfileDto,
+  ): Promise<SellerProfileMeResponseDto> {
+    return this.sellersService.updateMyProfile(req, payload);
   }
 
   @Post('products')
   createProduct(
+    @Req() req: Request,
     @Body() payload: CreateProductDto,
   ): Promise<CreateProductResponseDto> {
-    return this.sellersService.createProduct(payload);
+    return this.sellersService.createProduct(req, payload);
   }
 
   @Get('products/:productId/detail')

@@ -1,0 +1,263 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import type { Request } from 'express';
+import { JwtService } from '@nestjs/jwt';
+
+import { ensureAdminRole } from '../../common/auth/admin-guard.helper';
+import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
+import { PrismaService } from '../../prisma/prisma.service';
+import type {
+  AdminPromoteAdminResponseDto,
+  AdminSellerActionResponseDto,
+  AdminSellerListResponseDto,
+  AdminStatsResponseDto,
+  AdminUserListResponseDto,
+} from './dto/admin-response.dto';
+import type { RejectSellerDto } from './dto/reject-seller.dto';
+
+@Injectable()
+export class AdminService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  private async assertAdmin(req: Request): Promise<number> {
+    const userId = extractUserIdFromRequest(req, this.jwtService);
+    await ensureAdminRole(this.prisma, userId);
+    return userId;
+  }
+
+  async listUsers(
+    req: Request,
+    role?: string,
+  ): Promise<AdminUserListResponseDto> {
+    await this.assertAdmin(req);
+
+    const users = await this.prisma.user.findMany({
+      where: role ? { role } : undefined,
+      orderBy: { id: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        phone: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      users: users.map((user) => ({
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        phone: user.phone,
+        role: user.role,
+        status: user.status,
+        createdAt: user.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  async listSellers(
+    req: Request,
+    status?: string,
+  ): Promise<AdminSellerListResponseDto> {
+    await this.assertAdmin(req);
+
+    const sellers = await this.prisma.seller.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { id: 'desc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            phone: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    return {
+      sellers: sellers.map((seller) => ({
+        id: seller.id,
+        userId: seller.userId,
+        shopName: seller.shopName,
+        description: seller.description,
+        status: seller.status,
+        rejectReason: seller.rejectReason,
+        user: seller.user,
+      })),
+    };
+  }
+
+  async approveSeller(
+    req: Request,
+    sellerId: number,
+  ): Promise<AdminSellerActionResponseDto> {
+    await this.assertAdmin(req);
+
+    const seller = await this.prisma.seller.findUnique({
+      where: { id: sellerId },
+      select: { id: true, userId: true, status: true },
+    });
+    if (!seller) {
+      throw new NotFoundException('Seller not found.');
+    }
+    if (seller.status === 'active') {
+      throw new BadRequestException('Seller is already active.');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: seller.userId },
+        data: { role: 'seller' },
+      });
+
+      return tx.seller.update({
+        where: { id: seller.id },
+        data: { status: 'active', rejectReason: null },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              fullName: true,
+              phone: true,
+              role: true,
+            },
+          },
+        },
+      });
+    });
+
+    return {
+      seller: {
+        id: updated.id,
+        userId: updated.userId,
+        shopName: updated.shopName,
+        description: updated.description,
+        status: updated.status,
+        rejectReason: updated.rejectReason,
+        user: updated.user,
+      },
+    };
+  }
+
+  async rejectSeller(
+    req: Request,
+    sellerId: number,
+    payload: RejectSellerDto,
+  ): Promise<AdminSellerActionResponseDto> {
+    await this.assertAdmin(req);
+
+    const seller = await this.prisma.seller.findUnique({
+      where: { id: sellerId },
+      select: { id: true, status: true },
+    });
+    if (!seller) {
+      throw new NotFoundException('Seller not found.');
+    }
+    if (seller.status === 'rejected') {
+      throw new BadRequestException('Seller is already rejected.');
+    }
+
+    const updated = await this.prisma.seller.update({
+      where: { id: seller.id },
+      data: {
+        status: 'rejected',
+        rejectReason: payload.reason?.trim() ?? null,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            phone: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    return {
+      seller: {
+        id: updated.id,
+        userId: updated.userId,
+        shopName: updated.shopName,
+        description: updated.description,
+        status: updated.status,
+        rejectReason: updated.rejectReason,
+        user: updated.user,
+      },
+    };
+  }
+
+  async promoteToAdmin(
+    req: Request,
+    userId: number,
+  ): Promise<AdminPromoteAdminResponseDto> {
+    await this.assertAdmin(req);
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+    if (!target) {
+      throw new NotFoundException('User not found.');
+    }
+    if (target.role === 'admin') {
+      throw new ConflictException('User is already an admin.');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { role: 'admin' },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        phone: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      user: {
+        id: updated.id,
+        email: updated.email,
+        fullName: updated.fullName,
+        phone: updated.phone,
+        role: updated.role,
+        status: updated.status,
+        createdAt: updated.createdAt.toISOString(),
+      },
+    };
+  }
+
+  async getStats(req: Request): Promise<AdminStatsResponseDto> {
+    await this.assertAdmin(req);
+
+    const [totalUsers, totalSellers, pendingSellers, totalAdmins] =
+      await Promise.all([
+        this.prisma.user.count(),
+        this.prisma.seller.count({ where: { status: 'active' } }),
+        this.prisma.seller.count({ where: { status: 'pending' } }),
+        this.prisma.user.count({ where: { role: 'admin' } }),
+      ]);
+
+    return { totalUsers, totalSellers, pendingSellers, totalAdmins };
+  }
+}

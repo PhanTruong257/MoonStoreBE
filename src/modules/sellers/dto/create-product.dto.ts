@@ -11,7 +11,6 @@ export type CreateProductOptionGroupDto = {
 };
 
 export type CreateProductDto = {
-  userId: number;
   name: string;
   description?: string;
   categoryId: number;
