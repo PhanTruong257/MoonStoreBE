@@ -8,7 +8,7 @@ import {
 import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 
-import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
+import { getUserIdFromRequest as extractUserId } from '../../common/auth/request-user.helper';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   UserProfileResponseDto,
@@ -31,7 +31,7 @@ export class UsersService {
   ) {}
 
   private getUserIdFromRequest(req: Request) {
-    return extractUserIdFromRequest(req, this.jwtService);
+    return extractUserId(req, this.jwtService);
   }
 
   findAll(): UsersModuleListResponseDto {

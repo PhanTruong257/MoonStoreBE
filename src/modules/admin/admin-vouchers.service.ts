@@ -3,8 +3,7 @@ import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
 
-import { ensureAdminRole } from '../../common/auth/admin-guard.helper';
-import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
+import { assertAdminFromRequest } from '../../common/auth/request-user.helper';
 import { VOUCHER_DISCOUNT_TYPES } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
@@ -23,8 +22,7 @@ export class AdminVouchersService {
   ) {}
 
   private async assertAdmin(req: Request): Promise<void> {
-    const userId = extractUserIdFromRequest(req, this.jwtService);
-    await ensureAdminRole(this.prisma, userId);
+    await assertAdminFromRequest(req, this.jwtService, this.prisma);
   }
 
   private validateDiscountType(type: string): void {

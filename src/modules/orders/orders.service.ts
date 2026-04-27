@@ -3,12 +3,16 @@ import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
 
-import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
+import {
+  getActiveSellerIdForUser,
+  getUserIdFromRequest as extractUserId,
+} from '../../common/auth/request-user.helper';
 import {
   ORDER_GROUP_STATUS,
   ORDER_GROUP_STATUS_FLOW,
+  PAYMENT_METHOD,
+  PAYMENT_STATUS,
 } from '../../common/constants';
-import { PAYMENT_METHOD, PAYMENT_STATUS } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VouchersService } from '../vouchers/vouchers.service';
 import type { CreateOrderDto } from './dto/create-order.dto';
@@ -29,20 +33,11 @@ export class OrdersService {
   ) {}
 
   private getUserIdFromRequest(req: Request) {
-    return extractUserIdFromRequest(req, this.jwtService);
+    return extractUserId(req, this.jwtService);
   }
 
-  private async getSellerIdForUser(userId: number) {
-    const seller = await this.prisma.seller.findUnique({
-      where: { userId },
-      select: { id: true },
-    });
-
-    if (!seller) {
-      throw new ForbiddenException('Seller profile not found.');
-    }
-
-    return seller.id;
+  private getSellerIdForUser(userId: number) {
+    return getActiveSellerIdForUser(this.prisma, userId);
   }
 
   async createOrder(req: Request, payload: CreateOrderDto): Promise<OrderCreateResponseDto> {

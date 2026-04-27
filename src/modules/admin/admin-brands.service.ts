@@ -2,8 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 
-import { ensureAdminRole } from '../../common/auth/admin-guard.helper';
-import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
+import { assertAdminFromRequest } from '../../common/auth/request-user.helper';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   AdminBrandListResponseDto,
@@ -20,8 +19,7 @@ export class AdminBrandsService {
   ) {}
 
   private async assertAdmin(req: Request): Promise<void> {
-    const userId = extractUserIdFromRequest(req, this.jwtService);
-    await ensureAdminRole(this.prisma, userId);
+    await assertAdminFromRequest(req, this.jwtService, this.prisma);
   }
 
   async list(req: Request): Promise<AdminBrandListResponseDto> {

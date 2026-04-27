@@ -114,7 +114,10 @@ await this.prisma.order.findUnique({
 ```
 
 ### 6.2. Decimal & JSON
-- **Decimal**: đọc dùng `Number(value)` khi trả về client, ghi dùng `new Prisma.Decimal(value)`.
+- **Decimal**: ưu tiên helper trong `src/common/utils/decimal.helper.ts`:
+  - `toDecimal(value)` để ghi
+  - `decimalToNumber(value)` / `decimalToNumberOrZero(value)` khi trả response
+  - Tránh viết `new Prisma.Decimal(...)` / `Number(...)` trực tiếp ở service.
 - **JSON nullable**: gán `Prisma.DbNull` khi muốn NULL, **không dùng `null`**.
 
 ```ts
@@ -131,41 +134,46 @@ shippingAddress:
 
 ## 7. Auth & ownership
 
+Mọi pattern auth đã được centralize ở [`src/common/auth/request-user.helper.ts`](src/common/auth/request-user.helper.ts). Service **không tự viết lại**.
+
 ### 7.1. Lấy userId từ request
 
-Pattern hiện tại (chưa có guard chính thức):
 ```ts
+import { getUserIdFromRequest as extractUserId } from '../../common/auth/request-user.helper';
+
 private getUserIdFromRequest(req: Request) {
-  const cookies = req.cookies as Record<string, string> | undefined;
-  const token = cookies?.[ACCESS_COOKIE_NAME];
-  if (!token) throw new UnauthorizedException('Missing access token.');
-  try {
-    const payload = this.jwtService.verify<{ sub: number }>(token, {
-      secret: this.getAccessSecret(),
-    });
-    return payload.sub;
-  } catch {
-    throw new UnauthorizedException('Invalid access token.');
-  }
+  return extractUserId(req, this.jwtService);
 }
 ```
 
-> **TODO**: tách thành `AuthGuard` + `@CurrentUser()` decorator để không lặp code.
-
-### 7.2. Kiểm tra quyền seller
+### 7.2. Yêu cầu quyền admin (cho mọi endpoint `/admin/*`)
 
 ```ts
-private async getSellerIdForUser(userId: number) {
-  const seller = await this.prisma.seller.findUnique({
-    where: { userId },
-    select: { id: true },
-  });
-  if (!seller) throw new ForbiddenException('Seller profile not found.');
-  return seller.id;
+import { assertAdminFromRequest } from '../../common/auth/request-user.helper';
+
+private async assertAdmin(req: Request): Promise<void> {
+  await assertAdminFromRequest(req, this.jwtService, this.prisma);
 }
 ```
 
-### 7.3. Ownership check
+Trả về `userId` nếu cần (ví dụ check self-disable):
+```ts
+const adminId = await assertAdminFromRequest(req, this.jwtService, this.prisma);
+```
+
+### 7.3. Kiểm tra quyền seller (chỉ active)
+
+```ts
+import { getActiveSellerIdForUser } from '../../common/auth/request-user.helper';
+
+private getSellerIdForUser(userId: number) {
+  return getActiveSellerIdForUser(this.prisma, userId);
+}
+```
+
+Helper tự throw `ForbiddenException` nếu seller không tồn tại hoặc status ≠ `active`.
+
+### 7.4. Ownership check
 - Trước khi cho seller xem/sửa resource, **luôn verify** resource thuộc seller đó:
   ```ts
   const group = await tx.orderGroup.findUnique({ where: { id: groupId } });
@@ -173,6 +181,27 @@ private async getSellerIdForUser(userId: number) {
     throw new ForbiddenException('Not your order.');
   }
   ```
+
+## 7.5. Constants — `src/common/constants/`
+
+Mọi enum-like literal **bắt buộc** dùng const từ folder này, không hardcode `'PENDING'`, `'admin'`, `'active'`...
+
+| File | Cung cấp |
+|---|---|
+| `order-status.const.ts` | `ORDER_GROUP_STATUS`, `ORDER_GROUP_STATUS_FLOW` |
+| `payment.const.ts` | `PAYMENT_STATUS`, `PAYMENT_METHOD` |
+| `user.const.ts` | `USER_ROLE`, `USER_STATUS` |
+| `seller.const.ts` | `SELLER_STATUS` (pending/active/rejected/disabled) |
+| `product.const.ts` | `PRODUCT_STATUS` (active/draft/deleted) |
+| `voucher.const.ts` | `VOUCHER_DISCOUNT_TYPE` + `VOUCHER_DISCOUNT_TYPES` array |
+
+Import gọn từ barrel: `import { USER_ROLE, ORDER_GROUP_STATUS } from '../../common/constants';`
+
+## 7.6. Common utils — `src/common/utils/`
+
+| File | Cung cấp |
+|---|---|
+| `decimal.helper.ts` | `toDecimal`, `decimalToNumber`, `decimalToNumberOrZero` |
 
 ## 8. Response format
 

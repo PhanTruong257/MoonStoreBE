@@ -7,8 +7,7 @@ import {
 import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 
-import { ensureAdminRole } from '../../common/auth/admin-guard.helper';
-import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
+import { assertAdminFromRequest } from '../../common/auth/request-user.helper';
 import {
   SELLER_STATUS,
   USER_ROLE,
@@ -33,9 +32,7 @@ export class AdminService {
   ) {}
 
   private async assertAdmin(req: Request): Promise<number> {
-    const userId = extractUserIdFromRequest(req, this.jwtService);
-    await ensureAdminRole(this.prisma, userId);
-    return userId;
+    return assertAdminFromRequest(req, this.jwtService, this.prisma);
   }
 
   async listUsers(req: Request, role?: string): Promise<AdminUserListResponseDto> {

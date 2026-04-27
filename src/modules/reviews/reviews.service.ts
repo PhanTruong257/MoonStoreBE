@@ -7,7 +7,7 @@ import {
 import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 
-import { extractUserIdFromRequest } from '../../common/auth/auth-token.helper';
+import { getUserIdFromRequest as extractUserId } from '../../common/auth/request-user.helper';
 import { ORDER_GROUP_STATUS } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { CreateReviewDto } from './dto/create-review.dto';
@@ -27,7 +27,7 @@ export class ReviewsService {
   ) {}
 
   private getUserIdFromRequest(req: Request) {
-    return extractUserIdFromRequest(req, this.jwtService);
+    return extractUserId(req, this.jwtService);
   }
 
   private async hasDeliveredOrderItem(userId: number, productId: number) {
