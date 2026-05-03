@@ -14,6 +14,7 @@ import {
   PAYMENT_STATUS,
 } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PaymentsService } from '../payments/payments.service';
 import { VouchersService } from '../vouchers/vouchers.service';
 import type { CreateOrderDto } from './dto/create-order.dto';
 import type { UpdateOrderGroupStatusDto } from './dto/update-order-group-status.dto';
@@ -29,7 +30,8 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-    private readonly vouchersService: VouchersService
+    private readonly vouchersService: VouchersService,
+    private readonly paymentsService: PaymentsService
   ) {}
 
   private getUserIdFromRequest(req: Request) {
@@ -106,7 +108,7 @@ export class OrdersService {
     });
 
     const shippingFee = Number(payload.shippingFee ?? 0);
-    const paymentMethod = payload.paymentMethod?.trim() || PAYMENT_METHOD.COD;
+    const paymentMethod = payload.paymentMethod?.trim().toUpperCase() || PAYMENT_METHOD.COD;
     const totalAmount = enrichedItems.reduce((sum, item) => sum + item.lineTotal, 0);
 
     let resolvedShippingAddress: Prisma.InputJsonValue | typeof Prisma.DbNull = Prisma.DbNull;
@@ -246,7 +248,29 @@ export class OrdersService {
       return createdOrder;
     });
 
-    return { orderId: order.id };
+    let paymentUrl: string | undefined;
+    let qrInfo: OrderCreateResponseDto['qrInfo'];
+    if (paymentMethod === PAYMENT_METHOD.VNPAY && finalAmount > 0) {
+      const ipAddr =
+        (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ||
+        req.ip ||
+        '127.0.0.1';
+      paymentUrl = await this.paymentsService.createVnpayPayment(order.id, finalAmount, ipAddr);
+    } else if (paymentMethod === PAYMENT_METHOD.QR && finalAmount > 0) {
+      const qr = await this.paymentsService.createQrPayment(order.id, finalAmount);
+      qrInfo = {
+        paymentId: qr.paymentId,
+        amount: qr.amount,
+        bankBin: qr.bankBin,
+        bankName: qr.bankName,
+        accountNo: qr.accountNo,
+        accountName: qr.accountName,
+        transferContent: qr.transferContent,
+        qrUrl: qr.qrUrl,
+      };
+    }
+
+    return { orderId: order.id, paymentUrl, qrInfo };
   }
 
   async findOrders(req: Request): Promise<OrderListResponseDto> {
@@ -354,13 +378,8 @@ export class OrdersService {
     const sellerId = await this.getSellerIdForUser(userId);
     const nextStatus = payload.status?.trim().toUpperCase();
 
-    const isFlowStatus = (ORDER_GROUP_STATUS_FLOW as string[]).includes(
-      nextStatus ?? '',
-    );
-    if (
-      !nextStatus ||
-      (!isFlowStatus && nextStatus !== ORDER_GROUP_STATUS.CANCELLED)
-    ) {
+    const isFlowStatus = (ORDER_GROUP_STATUS_FLOW as string[]).includes(nextStatus ?? '');
+    if (!nextStatus || (!isFlowStatus && nextStatus !== ORDER_GROUP_STATUS.CANCELLED)) {
       throw new BadRequestException('Invalid status.');
     }
 

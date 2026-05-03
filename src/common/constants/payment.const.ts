@@ -11,6 +11,7 @@ export const PAYMENT_METHOD = {
   COD: 'COD',
   BANK: 'BANK',
   VNPAY: 'VNPAY',
+  QR: 'QR',
 } as const;
 
 export type PaymentMethod = (typeof PAYMENT_METHOD)[keyof typeof PAYMENT_METHOD];

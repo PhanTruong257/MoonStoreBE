@@ -13,11 +13,7 @@ import {
   getActiveSellerIdForUser,
   getUserIdFromRequest as extractUserId,
 } from '../../common/auth/request-user.helper';
-import {
-  ORDER_GROUP_STATUS,
-  PRODUCT_STATUS,
-  SELLER_STATUS,
-} from '../../common/constants';
+import { ORDER_GROUP_STATUS, PRODUCT_STATUS, SELLER_STATUS } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   CreateProductResponseDto,
@@ -238,9 +234,7 @@ export class SellersService {
     }
 
     if (existing.status === SELLER_STATUS.PENDING) {
-      throw new BadRequestException(
-        'Application is being reviewed and cannot be edited.',
-      );
+      throw new BadRequestException('Application is being reviewed and cannot be edited.');
     }
 
     const data: Prisma.SellerUpdateInput = {};
@@ -533,7 +527,15 @@ export class SellersService {
             id: true,
             createdAt: true,
             shippingAddress: true,
+            paymentMethod: true,
+            paymentStatus: true,
             user: { select: { id: true, fullName: true, phone: true } },
+            payments: {
+              where: { method: 'QR' },
+              orderBy: { id: 'desc' },
+              take: 1,
+              select: { id: true },
+            },
           },
         },
         items: { include: { selectedOptions: true } },
@@ -556,6 +558,9 @@ export class SellersService {
         subtotal: Number(group.subtotal),
         shippingFee: Number(group.shippingFee),
         createdAt: group.order.createdAt.toISOString(),
+        paymentMethod: group.order.paymentMethod,
+        paymentStatus: group.order.paymentStatus,
+        qrPaymentId: group.order.payments[0]?.id ?? null,
         buyer: {
           id: group.order.user.id,
           fullName: group.order.user.fullName,
@@ -603,12 +608,8 @@ export class SellersService {
     ]);
 
     const totalOrders = groups.length;
-    const pendingOrders = groups.filter(
-      (g) => g.status === ORDER_GROUP_STATUS.PENDING,
-    ).length;
-    const deliveredOrders = groups.filter(
-      (g) => g.status === ORDER_GROUP_STATUS.DELIVERED,
-    ).length;
+    const pendingOrders = groups.filter((g) => g.status === ORDER_GROUP_STATUS.PENDING).length;
+    const deliveredOrders = groups.filter((g) => g.status === ORDER_GROUP_STATUS.DELIVERED).length;
     const revenue = groups
       .filter((g) => g.status === ORDER_GROUP_STATUS.DELIVERED)
       .reduce((sum, g) => sum + Number(g.subtotal), 0);

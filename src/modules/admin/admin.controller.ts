@@ -70,7 +70,7 @@ export class AdminController {
   @Patch('users/:userId/enable')
   enableUser(
     @Req() req: Request,
-    @Param('userId', ParseIntPipe) userId: number,
+    @Param('userId', ParseIntPipe) userId: number
   ): Promise<AdminPromoteAdminResponseDto> {
     return this.adminService.setUserStatus(req, userId, USER_STATUS.ACTIVE);
   }
@@ -78,24 +78,16 @@ export class AdminController {
   @Patch('sellers/:sellerId/disable')
   disableSeller(
     @Req() req: Request,
-    @Param('sellerId', ParseIntPipe) sellerId: number,
+    @Param('sellerId', ParseIntPipe) sellerId: number
   ): Promise<AdminSellerActionResponseDto> {
-    return this.adminService.setSellerStatus(
-      req,
-      sellerId,
-      SELLER_STATUS.DISABLED,
-    );
+    return this.adminService.setSellerStatus(req, sellerId, SELLER_STATUS.DISABLED);
   }
 
   @Patch('sellers/:sellerId/enable')
   enableSeller(
     @Req() req: Request,
-    @Param('sellerId', ParseIntPipe) sellerId: number,
+    @Param('sellerId', ParseIntPipe) sellerId: number
   ): Promise<AdminSellerActionResponseDto> {
-    return this.adminService.setSellerStatus(
-      req,
-      sellerId,
-      SELLER_STATUS.ACTIVE,
-    );
+    return this.adminService.setSellerStatus(req, sellerId, SELLER_STATUS.ACTIVE);
   }
 }

@@ -41,8 +41,21 @@ export type OrderDto = {
   groups?: OrderGroupDto[];
 };
 
+export type OrderCreateQrInfoDto = {
+  paymentId: number;
+  amount: number;
+  bankBin: string;
+  bankName: string;
+  accountNo: string;
+  accountName: string;
+  transferContent: string;
+  qrUrl: string;
+};
+
 export type OrderCreateResponseDto = {
   orderId: number;
+  paymentUrl?: string;
+  qrInfo?: OrderCreateQrInfoDto;
 };
 
 export type OrderListResponseDto = {

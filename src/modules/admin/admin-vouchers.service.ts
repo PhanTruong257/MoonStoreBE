@@ -28,7 +28,7 @@ export class AdminVouchersService {
   private validateDiscountType(type: string): void {
     if (!(VOUCHER_DISCOUNT_TYPES as string[]).includes(type)) {
       throw new BadRequestException(
-        `discountType must be one of: ${VOUCHER_DISCOUNT_TYPES.join(', ')}`,
+        `discountType must be one of: ${VOUCHER_DISCOUNT_TYPES.join(', ')}`
       );
     }
   }

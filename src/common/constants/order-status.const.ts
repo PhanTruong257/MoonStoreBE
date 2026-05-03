@@ -6,8 +6,7 @@ export const ORDER_GROUP_STATUS = {
   CANCELLED: 'CANCELLED',
 } as const;
 
-export type OrderGroupStatus =
-  (typeof ORDER_GROUP_STATUS)[keyof typeof ORDER_GROUP_STATUS];
+export type OrderGroupStatus = (typeof ORDER_GROUP_STATUS)[keyof typeof ORDER_GROUP_STATUS];
 
 /** Sequential flow used for advancing status (excludes terminal states). */
 export const ORDER_GROUP_STATUS_FLOW: OrderGroupStatus[] = [

@@ -8,12 +8,7 @@ import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 
 import { assertAdminFromRequest } from '../../common/auth/request-user.helper';
-import {
-  SELLER_STATUS,
-  USER_ROLE,
-  USER_STATUS,
-  type UserStatus,
-} from '../../common/constants';
+import { SELLER_STATUS, USER_ROLE, USER_STATUS, type UserStatus } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   AdminPromoteAdminResponseDto,
@@ -258,7 +253,7 @@ export class AdminService {
   async setUserStatus(
     req: Request,
     userId: number,
-    nextStatus: UserStatus,
+    nextStatus: UserStatus
   ): Promise<AdminPromoteAdminResponseDto> {
     const adminUserId = await this.assertAdmin(req);
 
@@ -307,7 +302,7 @@ export class AdminService {
   async setSellerStatus(
     req: Request,
     sellerId: number,
-    nextStatus: typeof SELLER_STATUS.ACTIVE | typeof SELLER_STATUS.DISABLED,
+    nextStatus: typeof SELLER_STATUS.ACTIVE | typeof SELLER_STATUS.DISABLED
   ): Promise<AdminSellerActionResponseDto> {
     await this.assertAdmin(req);
 
@@ -321,10 +316,7 @@ export class AdminService {
     if (seller.status === nextStatus) {
       throw new BadRequestException(`Seller is already ${nextStatus}.`);
     }
-    if (
-      seller.status === SELLER_STATUS.PENDING ||
-      seller.status === SELLER_STATUS.REJECTED
-    ) {
+    if (seller.status === SELLER_STATUS.PENDING || seller.status === SELLER_STATUS.REJECTED) {
       throw new BadRequestException('Use approve/reject endpoints for pending/rejected sellers.');
     }
 

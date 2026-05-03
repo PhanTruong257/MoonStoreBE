@@ -38,6 +38,9 @@ export type SellerOrderListResponseDto = {
 export type SellerOrderDetailResponseDto = {
   group: SellerOrderGroupDto & {
     shippingAddress: Record<string, unknown> | null;
+    paymentMethod: string;
+    paymentStatus: string;
+    qrPaymentId: number | null;
     statusLogs: Array<{
       id: number;
       status: string;

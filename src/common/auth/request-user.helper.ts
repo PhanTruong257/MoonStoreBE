@@ -11,10 +11,8 @@ import type { PrismaService } from '../../prisma/prisma.service';
  * Extract userId from JWT cookie. Throws UnauthorizedException if missing/invalid.
  * Thin re-export so service code only imports from one place.
  */
-export const getUserIdFromRequest = (
-  req: Request,
-  jwt: JwtService,
-): number => extractUserIdFromRequest(req, jwt);
+export const getUserIdFromRequest = (req: Request, jwt: JwtService): number =>
+  extractUserIdFromRequest(req, jwt);
 
 /**
  * Verify the request is from an active admin. Returns the admin's userId.
@@ -23,7 +21,7 @@ export const getUserIdFromRequest = (
 export const assertAdminFromRequest = async (
   req: Request,
   jwt: JwtService,
-  prisma: PrismaService,
+  prisma: PrismaService
 ): Promise<number> => {
   const userId = extractUserIdFromRequest(req, jwt);
   await ensureAdminRole(prisma, userId);
@@ -37,7 +35,7 @@ export const assertAdminFromRequest = async (
  */
 export const getActiveSellerIdForUser = async (
   prisma: PrismaService,
-  userId: number,
+  userId: number
 ): Promise<number> => {
   const seller = await prisma.seller.findUnique({
     where: { userId },
