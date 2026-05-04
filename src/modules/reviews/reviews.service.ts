@@ -63,7 +63,7 @@ export class ReviewsService {
   async listForProduct(productId: number): Promise<ProductReviewsResponseDto> {
     const reviews = await this.prisma.review.findMany({
       where: { productId },
-      orderBy: { id: 'desc' },
+      orderBy: { createdAt: 'desc' },
       include: {
         user: { select: { id: true, fullName: true } },
       },
@@ -81,6 +81,7 @@ export class ReviewsService {
         id: review.id,
         rating: review.rating,
         comment: review.comment,
+        createdAt: review.createdAt.toISOString(),
         user: review.user,
       })),
     };
@@ -161,6 +162,7 @@ export class ReviewsService {
         id: review.id,
         rating: review.rating,
         comment: review.comment,
+        createdAt: review.createdAt.toISOString(),
         user: review.user,
       },
     };

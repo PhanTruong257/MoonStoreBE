@@ -297,13 +297,14 @@ model ShipmentLog {
 }
 
 model Review {
-  id        Int     @id @default(autoincrement())
-  userId    Int     @map("user_id")
-  productId Int     @map("product_id")
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  productId Int      @map("product_id")
   rating    Int
   comment   String?
-  user      User    @relation(fields: [userId], references: [id])
-  product   Product @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
 
   @@map("reviews")
 }
