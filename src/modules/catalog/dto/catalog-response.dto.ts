@@ -60,6 +60,8 @@ export type CatalogProductDetailDto = {
   imageUrl: string;
   averageRating: number;
   totalReviews: number;
+  sellerId: number;
+  sellerShopName: string;
   optionGroups: CatalogOptionGroupDto[];
 };
 

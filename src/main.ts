@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
@@ -12,6 +13,7 @@ async function bootstrap() {
     origin: corsOrigin.split(',').map((origin) => origin.trim()),
     credentials: true,
   });
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Moon Store API')

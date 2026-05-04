@@ -103,6 +103,7 @@ export class CatalogService {
       include: {
         category: { select: { id: true, name: true } },
         brand: { select: { id: true, name: true } },
+        seller: { select: { id: true, shopName: true } },
         optionGroups: {
           orderBy: { position: 'asc' },
           include: {
@@ -136,6 +137,8 @@ export class CatalogService {
         imageUrl: product.imageUrl,
         averageRating: Math.round(averageRating * 10) / 10,
         totalReviews,
+        sellerId: product.seller.id,
+        sellerShopName: product.seller.shopName,
         optionGroups: product.optionGroups.map((group) => ({
           id: group.id,
           name: group.name,
