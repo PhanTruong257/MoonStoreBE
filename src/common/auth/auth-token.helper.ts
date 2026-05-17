@@ -13,6 +13,8 @@ export const extractUserIdFromRequest = (req: Request, jwtService: JwtService): 
   const cookies = req.cookies as Record<string, string> | undefined;
   const token = cookies?.[ACCESS_COOKIE_NAME];
   if (!token) {
+    // eslint-disable-next-line no-console
+    console.log('[auth-debug] Missing access token. req.cookies =', cookies, ' raw header =', req.headers.cookie);
     throw new UnauthorizedException('Missing access token.');
   }
 
@@ -21,7 +23,9 @@ export const extractUserIdFromRequest = (req: Request, jwtService: JwtService): 
       secret: getAccessSecret(),
     });
     return payload.sub;
-  } catch {
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.log('[auth-debug] Invalid access token. token =', token.slice(0, 20), '... err =', (err as Error).message);
     throw new UnauthorizedException('Invalid access token.');
   }
 };

@@ -30,18 +30,13 @@ const parseCookies = (header: string | undefined): Record<string, string> => {
         const key = part.slice(0, eq).trim();
         const value = decodeURIComponent(part.slice(eq + 1).trim());
         return [key, value] as const;
-      })
+      }),
   );
-};
-
-const getCorsOrigin = () => {
-  const raw = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
-  return raw.split(',').map((origin) => origin.trim());
 };
 
 @WebSocketGateway({
   cors: {
-    origin: getCorsOrigin(),
+    origin: true,
     credentials: true,
   },
 })
