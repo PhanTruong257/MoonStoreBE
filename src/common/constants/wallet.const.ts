@@ -1,0 +1,16 @@
+export const WALLET_TRANSACTION_TYPE = {
+  CREDIT: 'CREDIT',
+  DEBIT: 'DEBIT',
+} as const;
+
+export const WITHDRAWAL_STATUS = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+} as const;
+
+export const REFUND_REQUEST_STATUS = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+} as const;

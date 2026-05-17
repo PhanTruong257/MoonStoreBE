@@ -15,6 +15,7 @@ import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { SearchModule } from './modules/search/search.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { WalletModule } from './modules/wallet/wallet.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { AdminModule } from './modules/admin/admin.module';
     SearchModule,
     ChatModule,
     AdminModule,
+    WalletModule,
   ],
   controllers: [AppController],
   providers: [AppService],

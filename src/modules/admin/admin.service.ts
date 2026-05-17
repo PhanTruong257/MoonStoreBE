@@ -4,11 +4,19 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 
 import { assertAdminFromRequest } from '../../common/auth/request-user.helper';
-import { SELLER_STATUS, USER_ROLE, USER_STATUS, type UserStatus } from '../../common/constants';
+import {
+  REFUND_REQUEST_STATUS,
+  SELLER_STATUS,
+  USER_ROLE,
+  USER_STATUS,
+  WITHDRAWAL_STATUS,
+  type UserStatus,
+} from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   AdminPromoteAdminResponseDto,
@@ -296,6 +304,159 @@ export class AdminService {
         status: updated.status,
         createdAt: updated.createdAt.toISOString(),
       },
+    };
+  }
+
+  async getCommissionRate(req: Request) {
+    await this.assertAdmin(req);
+    const config = await this.prisma.platformConfig.findFirst();
+    return { commissionRate: config ? Number(config.commissionRate) : 10 };
+  }
+
+  async setCommissionRate(req: Request, rate: number) {
+    await this.assertAdmin(req);
+    if (rate < 0 || rate > 100) throw new BadRequestException('Rate must be 0–100.');
+    const config = await this.prisma.platformConfig.findFirst();
+    if (config) {
+      await this.prisma.platformConfig.update({
+        where: { id: config.id },
+        data: { commissionRate: new Prisma.Decimal(rate) },
+      });
+    } else {
+      await this.prisma.platformConfig.create({
+        data: { commissionRate: new Prisma.Decimal(rate) },
+      });
+    }
+    return { commissionRate: rate };
+  }
+
+  async listRefundRequests(req: Request, status?: string) {
+    await this.assertAdmin(req);
+    const requests = await this.prisma.refundRequest.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { id: true, email: true, fullName: true } },
+        order: { select: { id: true, finalAmount: true } },
+      },
+    });
+    return {
+      refundRequests: requests.map((r) => ({
+        id: r.id,
+        orderId: r.orderId,
+        userId: r.userId,
+        reason: r.reason,
+        amount: Number(r.amount),
+        status: r.status,
+        note: r.note ?? null,
+        processedAt: r.processedAt?.toISOString() ?? null,
+        createdAt: r.createdAt.toISOString(),
+        user: r.user,
+        order: { id: r.order.id, finalAmount: Number(r.order.finalAmount) },
+      })),
+    };
+  }
+
+  async processRefundRequest(req: Request, requestId: number, approved: boolean, note?: string) {
+    await this.assertAdmin(req);
+    const request = await this.prisma.refundRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Refund request not found.');
+    if (request.status !== REFUND_REQUEST_STATUS.PENDING) {
+      throw new BadRequestException('Request is already processed.');
+    }
+    const updated = await this.prisma.refundRequest.update({
+      where: { id: requestId },
+      data: {
+        status: approved ? REFUND_REQUEST_STATUS.APPROVED : REFUND_REQUEST_STATUS.REJECTED,
+        note: note?.trim() ?? null,
+        processedAt: new Date(),
+      },
+    });
+    return { id: updated.id, status: updated.status };
+  }
+
+  async listWithdrawalRequests(req: Request, status?: string) {
+    await this.assertAdmin(req);
+    const requests = await this.prisma.withdrawalRequest.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        wallet: {
+          include: { seller: { select: { id: true, shopName: true } } },
+        },
+      },
+    });
+    return {
+      withdrawals: requests.map((w) => ({
+        id: w.id,
+        amount: Number(w.amount),
+        bankName: w.bankName,
+        bankAccount: w.bankAccount,
+        bankHolder: w.bankHolder,
+        status: w.status,
+        note: w.note ?? null,
+        processedAt: w.processedAt?.toISOString() ?? null,
+        createdAt: w.createdAt.toISOString(),
+        seller: w.wallet.seller,
+      })),
+    };
+  }
+
+  async processWithdrawal(req: Request, withdrawalId: number, approved: boolean, note?: string) {
+    await this.assertAdmin(req);
+    const withdrawal = await this.prisma.withdrawalRequest.findUnique({
+      where: { id: withdrawalId },
+    });
+    if (!withdrawal) throw new NotFoundException('Withdrawal request not found.');
+    if (withdrawal.status !== WITHDRAWAL_STATUS.PENDING) {
+      throw new BadRequestException('Request is already processed.');
+    }
+
+    if (!approved) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.withdrawalRequest.update({
+          where: { id: withdrawalId },
+          data: {
+            status: WITHDRAWAL_STATUS.REJECTED,
+            note: note?.trim() ?? null,
+            processedAt: new Date(),
+          },
+        });
+        await tx.sellerWallet.update({
+          where: { id: withdrawal.walletId },
+          data: {
+            balance: { increment: withdrawal.amount },
+            totalWithdrawn: { decrement: withdrawal.amount },
+          },
+        });
+      });
+    } else {
+      await this.prisma.withdrawalRequest.update({
+        where: { id: withdrawalId },
+        data: {
+          status: WITHDRAWAL_STATUS.APPROVED,
+          note: note?.trim() ?? null,
+          processedAt: new Date(),
+        },
+      });
+    }
+
+    return { id: withdrawalId, status: approved ? WITHDRAWAL_STATUS.APPROVED : WITHDRAWAL_STATUS.REJECTED };
+  }
+
+  async getRevenueReport(req: Request) {
+    await this.assertAdmin(req);
+    const [totalRevenue, totalTransactions, pendingRefunds, pendingWithdrawals] = await Promise.all([
+      this.prisma.walletTransaction.aggregate({ _sum: { fee: true } }),
+      this.prisma.walletTransaction.count(),
+      this.prisma.refundRequest.count({ where: { status: REFUND_REQUEST_STATUS.PENDING } }),
+      this.prisma.withdrawalRequest.count({ where: { status: WITHDRAWAL_STATUS.PENDING } }),
+    ]);
+    return {
+      platformRevenue: Number(totalRevenue._sum.fee ?? 0),
+      totalTransactions,
+      pendingRefunds,
+      pendingWithdrawals,
     };
   }
 

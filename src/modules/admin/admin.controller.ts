@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 
 import { SELLER_STATUS, USER_STATUS } from '../../common/constants';
@@ -89,5 +89,66 @@ export class AdminController {
     @Param('sellerId', ParseIntPipe) sellerId: number
   ): Promise<AdminSellerActionResponseDto> {
     return this.adminService.setSellerStatus(req, sellerId, SELLER_STATUS.ACTIVE);
+  }
+
+  @Get('config/commission')
+  getCommissionRate(@Req() req: Request) {
+    return this.adminService.getCommissionRate(req);
+  }
+
+  @Patch('config/commission')
+  setCommissionRate(@Req() req: Request, @Body() body: { rate: number }) {
+    return this.adminService.setCommissionRate(req, body.rate);
+  }
+
+  @Get('refund-requests')
+  listRefundRequests(@Req() req: Request, @Query('status') status?: string) {
+    return this.adminService.listRefundRequests(req, status?.trim() || undefined);
+  }
+
+  @Patch('refund-requests/:id/approve')
+  approveRefundRequest(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { note?: string },
+  ) {
+    return this.adminService.processRefundRequest(req, id, true, body.note);
+  }
+
+  @Patch('refund-requests/:id/reject')
+  rejectRefundRequest(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { note?: string },
+  ) {
+    return this.adminService.processRefundRequest(req, id, false, body.note);
+  }
+
+  @Get('withdrawals')
+  listWithdrawals(@Req() req: Request, @Query('status') status?: string) {
+    return this.adminService.listWithdrawalRequests(req, status?.trim() || undefined);
+  }
+
+  @Patch('withdrawals/:id/approve')
+  approveWithdrawal(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { note?: string },
+  ) {
+    return this.adminService.processWithdrawal(req, id, true, body.note);
+  }
+
+  @Patch('withdrawals/:id/reject')
+  rejectWithdrawal(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { note?: string },
+  ) {
+    return this.adminService.processWithdrawal(req, id, false, body.note);
+  }
+
+  @Get('revenue')
+  getRevenueReport(@Req() req: Request) {
+    return this.adminService.getRevenueReport(req);
   }
 }

@@ -5,3 +5,4 @@ export * from './product.const';
 export * from './seller.const';
 export * from './user.const';
 export * from './voucher.const';
+export * from './wallet.const';

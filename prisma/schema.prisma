@@ -8,23 +8,24 @@ datasource db {
 }
 
 model User {
-  id                 Int            @id @default(autoincrement())
+  id                 Int             @id @default(autoincrement())
   email              String
   password           String
-  fullName           String         @map("full_name")
+  fullName           String          @map("full_name")
   phone              String
   role               String
   status             String
-  createdAt          DateTime       @default(now()) @map("created_at")
+  createdAt          DateTime        @default(now()) @map("created_at")
   addresses          UserAddress[]
   sellerProfile      Seller?
   carts              Cart[]
   orders             Order[]
   reviews            Review[]
   voucherUsages      VoucherUsage[]
-  sentMessages       Message[]      @relation("MessageSender")
+  sentMessages       Message[]       @relation("MessageSender")
   messageReads       MessageRead[]
-  buyerConversations Conversation[] @relation("ConversationBuyer")
+  buyerConversations Conversation[]  @relation("ConversationBuyer")
+  refundRequests     RefundRequest[]
 
   @@map("users")
 }
@@ -53,6 +54,7 @@ model Seller {
   products      Product[]
   orderGroups   OrderGroup[]
   conversations Conversation[]
+  wallet        SellerWallet?
 
   @@map("sellers")
 }
@@ -158,40 +160,42 @@ model CartItemOption {
 }
 
 model Order {
-  id              Int            @id @default(autoincrement())
-  userId          Int            @map("user_id")
-  voucherId       Int?           @map("voucher_id")
-  totalAmount     Decimal        @map("total_amount") @db.Decimal(12, 2)
-  shippingFee     Decimal        @map("shipping_fee") @db.Decimal(12, 2)
-  discountAmount  Decimal        @map("discount_amount") @db.Decimal(12, 2)
-  finalAmount     Decimal        @map("final_amount") @db.Decimal(12, 2)
-  paymentMethod   String         @map("payment_method")
+  id              Int             @id @default(autoincrement())
+  userId          Int             @map("user_id")
+  voucherId       Int?            @map("voucher_id")
+  totalAmount     Decimal         @map("total_amount") @db.Decimal(12, 2)
+  shippingFee     Decimal         @map("shipping_fee") @db.Decimal(12, 2)
+  discountAmount  Decimal         @map("discount_amount") @db.Decimal(12, 2)
+  finalAmount     Decimal         @map("final_amount") @db.Decimal(12, 2)
+  paymentMethod   String          @map("payment_method")
   status          String
-  paymentStatus   String         @map("payment_status")
-  shippingAddress Json?          @map("shipping_address")
-  createdAt       DateTime       @default(now()) @map("created_at")
-  user            User           @relation(fields: [userId], references: [id])
-  voucher         Voucher?       @relation(fields: [voucherId], references: [id])
+  paymentStatus   String          @map("payment_status")
+  shippingAddress Json?           @map("shipping_address")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  user            User            @relation(fields: [userId], references: [id])
+  voucher         Voucher?        @relation(fields: [voucherId], references: [id])
   orderGroups     OrderGroup[]
   payments        Payment[]
   voucherUsages   VoucherUsage[]
   conversations   Conversation[]
+  refundRequests  RefundRequest[]
 
   @@map("orders")
 }
 
 model OrderGroup {
-  id          Int              @id @default(autoincrement())
-  orderId     Int              @map("order_id")
-  sellerId    Int              @map("seller_id")
-  subtotal    Decimal          @db.Decimal(12, 2)
-  shippingFee Decimal          @map("shipping_fee") @db.Decimal(12, 2)
-  status      String
-  order       Order            @relation(fields: [orderId], references: [id])
-  seller      Seller           @relation(fields: [sellerId], references: [id])
-  items       OrderItem[]
-  shipments   Shipment[]
-  statusLogs  OrderStatusLog[]
+  id                 Int                 @id @default(autoincrement())
+  orderId            Int                 @map("order_id")
+  sellerId           Int                 @map("seller_id")
+  subtotal           Decimal             @db.Decimal(12, 2)
+  shippingFee        Decimal             @map("shipping_fee") @db.Decimal(12, 2)
+  status             String
+  order              Order               @relation(fields: [orderId], references: [id])
+  seller             Seller              @relation(fields: [sellerId], references: [id])
+  items              OrderItem[]
+  shipments          Shipment[]
+  statusLogs         OrderStatusLog[]
+  walletTransactions WalletTransaction[]
 
   @@map("order_groups")
 }
@@ -399,4 +403,73 @@ model MessageRead {
 
   @@unique([messageId, userId])
   @@map("message_reads")
+}
+
+model PlatformConfig {
+  id             Int      @id @default(autoincrement())
+  commissionRate Decimal  @default(10) @map("commission_rate") @db.Decimal(5, 2)
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_config")
+}
+
+model SellerWallet {
+  id             Int                 @id @default(autoincrement())
+  sellerId       Int                 @unique @map("seller_id")
+  balance        Decimal             @default(0) @db.Decimal(12, 2)
+  totalEarned    Decimal             @default(0) @map("total_earned") @db.Decimal(12, 2)
+  totalWithdrawn Decimal             @default(0) @map("total_withdrawn") @db.Decimal(12, 2)
+  seller         Seller              @relation(fields: [sellerId], references: [id])
+  transactions   WalletTransaction[]
+  withdrawals    WithdrawalRequest[]
+
+  @@map("seller_wallets")
+}
+
+model WalletTransaction {
+  id           Int          @id @default(autoincrement())
+  walletId     Int          @map("wallet_id")
+  type         String
+  amount       Decimal      @db.Decimal(12, 2)
+  fee          Decimal      @default(0) @db.Decimal(12, 2)
+  net          Decimal      @db.Decimal(12, 2)
+  description  String
+  orderGroupId Int?         @map("order_group_id")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  wallet       SellerWallet @relation(fields: [walletId], references: [id])
+  orderGroup   OrderGroup?  @relation(fields: [orderGroupId], references: [id])
+
+  @@map("wallet_transactions")
+}
+
+model WithdrawalRequest {
+  id          Int          @id @default(autoincrement())
+  walletId    Int          @map("wallet_id")
+  amount      Decimal      @db.Decimal(12, 2)
+  bankName    String       @map("bank_name")
+  bankAccount String       @map("bank_account")
+  bankHolder  String       @map("bank_holder")
+  status      String       @default("PENDING")
+  note        String?
+  processedAt DateTime?    @map("processed_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  wallet      SellerWallet @relation(fields: [walletId], references: [id])
+
+  @@map("withdrawal_requests")
+}
+
+model RefundRequest {
+  id          Int       @id @default(autoincrement())
+  orderId     Int       @map("order_id")
+  userId      Int       @map("user_id")
+  reason      String
+  amount      Decimal   @db.Decimal(12, 2)
+  status      String    @default("PENDING")
+  note        String?
+  processedAt DateTime? @map("processed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  order       Order     @relation(fields: [orderId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@map("refund_requests")
 }

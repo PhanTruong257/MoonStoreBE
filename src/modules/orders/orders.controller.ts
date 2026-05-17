@@ -9,6 +9,7 @@ import type {
 } from './dto/orders-response.dto';
 import type { CreateOrderDto } from './dto/create-order.dto';
 import type { UpdateOrderGroupStatusDto } from './dto/update-order-group-status.dto';
+import type { CreateRefundRequestDto } from './dto/create-refund-request.dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -47,5 +48,14 @@ export class OrdersController {
     @Param('groupId', ParseIntPipe) groupId: number
   ): Promise<OrderGroupStatusResponseDto> {
     return this.ordersService.cancelGroup(req, groupId);
+  }
+
+  @Post(':id/refund-requests')
+  createRefundRequest(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: CreateRefundRequestDto,
+  ) {
+    return this.ordersService.createRefundRequest(req, id, payload);
   }
 }

@@ -12,10 +12,12 @@ import {
   ORDER_GROUP_STATUS_FLOW,
   PAYMENT_METHOD,
   PAYMENT_STATUS,
+  REFUND_REQUEST_STATUS,
 } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
 import { VouchersService } from '../vouchers/vouchers.service';
+import { WalletService } from '../wallet/wallet.service';
 import type { CreateOrderDto } from './dto/create-order.dto';
 import type { UpdateOrderGroupStatusDto } from './dto/update-order-group-status.dto';
 import type {
@@ -31,7 +33,8 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly vouchersService: VouchersService,
-    private readonly paymentsService: PaymentsService
+    private readonly paymentsService: PaymentsService,
+    private readonly walletService: WalletService,
   ) {}
 
   private getUserIdFromRequest(req: Request) {
@@ -411,7 +414,7 @@ export class OrdersService {
     const updated = await this.prisma.orderGroup.update({
       where: { id: groupId },
       data: { status: nextStatus },
-      select: { id: true, status: true },
+      select: { id: true, status: true, sellerId: true, subtotal: true },
     });
 
     await this.prisma.orderStatusLog.create({
@@ -422,7 +425,50 @@ export class OrdersService {
       },
     });
 
+    if (nextStatus === ORDER_GROUP_STATUS.DELIVERED) {
+      const config = await this.prisma.platformConfig.findFirst();
+      const commissionRate = config ? Number(config.commissionRate) : 10;
+      await this.walletService.creditSellerWallet(
+        updated.sellerId,
+        updated.id,
+        Number(updated.subtotal),
+        commissionRate,
+      );
+    }
+
     return { groupId: updated.id, status: updated.status };
+  }
+
+  async createRefundRequest(req: Request, orderId: number, payload: { reason: string; amount: number }) {
+    const userId = this.getUserIdFromRequest(req);
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: { userId: true, finalAmount: true },
+    });
+
+    if (!order || order.userId !== userId) {
+      throw new ForbiddenException('Order not found.');
+    }
+
+    const existing = await this.prisma.refundRequest.findFirst({
+      where: { orderId, userId, status: REFUND_REQUEST_STATUS.PENDING },
+    });
+    if (existing) {
+      throw new BadRequestException('A refund request is already pending for this order.');
+    }
+
+    const request = await this.prisma.refundRequest.create({
+      data: {
+        orderId,
+        userId,
+        reason: payload.reason,
+        amount: new Prisma.Decimal(payload.amount),
+        status: REFUND_REQUEST_STATUS.PENDING,
+      },
+    });
+
+    return { refundRequestId: request.id, status: request.status };
   }
 
   async cancelGroup(req: Request, groupId: number): Promise<OrderGroupStatusResponseDto> {
