@@ -5,10 +5,17 @@ import type { Request } from 'express';
 export const ACCESS_COOKIE_NAME = 'access_token';
 export const REFRESH_COOKIE_NAME = 'refresh_token';
 
-export const getAccessSecret = () => process.env.JWT_SECRET ?? 'dev-secret';
+export const getAccessSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET environment variable is not set');
+  return secret;
+};
 
-export const getRefreshSecret = () =>
-  process.env.JWT_REFRESH_SECRET ?? 'dev-refresh-secret';
+export const getRefreshSecret = (): string => {
+  const secret = process.env.JWT_REFRESH_SECRET;
+  if (!secret) throw new Error('JWT_REFRESH_SECRET environment variable is not set');
+  return secret;
+};
 
 export const extractUserIdFromRequest = (
   req: Request,
@@ -17,13 +24,6 @@ export const extractUserIdFromRequest = (
   const cookies = req.cookies as Record<string, string> | undefined;
   const token = cookies?.[ACCESS_COOKIE_NAME];
   if (!token) {
-    // eslint-disable-next-line no-console
-    console.log(
-      '[auth-debug] Missing access token. req.cookies =',
-      cookies,
-      ' raw header =',
-      req.headers.cookie,
-    );
     throw new UnauthorizedException('Missing access token.');
   }
 
@@ -32,14 +32,7 @@ export const extractUserIdFromRequest = (
       secret: getAccessSecret(),
     });
     return payload.sub;
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.log(
-      '[auth-debug] Invalid access token. token =',
-      token.slice(0, 20),
-      '... err =',
-      (err as Error).message,
-    );
+  } catch {
     throw new UnauthorizedException('Invalid access token.');
   }
 };

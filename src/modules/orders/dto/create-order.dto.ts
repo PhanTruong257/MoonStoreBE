@@ -4,4 +4,5 @@ export type CreateOrderDto = {
   paymentMethod?: string;
   shippingAddress?: Record<string, unknown>;
   addressId?: number;
+  cartItemIds?: number[];
 };

@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
@@ -45,7 +49,10 @@ export class OrdersService {
     return getActiveSellerIdForUser(this.prisma, userId);
   }
 
-  async createOrder(req: Request, payload: CreateOrderDto): Promise<OrderCreateResponseDto> {
+  async createOrder(
+    req: Request,
+    payload: CreateOrderDto,
+  ): Promise<OrderCreateResponseDto> {
     const userId = this.getUserIdFromRequest(req);
     const cart = await this.prisma.cart.findFirst({ where: { userId } });
 
@@ -53,8 +60,18 @@ export class OrdersService {
       throw new BadRequestException('Cart not found.');
     }
 
+    const requestedItemIds = Array.isArray(payload.cartItemIds)
+      ? payload.cartItemIds.filter(
+          (value): value is number =>
+            typeof value === 'number' && Number.isFinite(value),
+        )
+      : [];
+
     const cartItems = await this.prisma.cartItem.findMany({
-      where: { cartId: cart.id },
+      where: {
+        cartId: cart.id,
+        ...(requestedItemIds.length > 0 ? { id: { in: requestedItemIds } } : {}),
+      },
       include: {
         product: {
           select: {
@@ -85,10 +102,19 @@ export class OrdersService {
       throw new BadRequestException('Cart is empty.');
     }
 
+    if (
+      requestedItemIds.length > 0 &&
+      cartItems.length !== requestedItemIds.length
+    ) {
+      throw new BadRequestException(
+        'Some selected cart items are no longer available.',
+      );
+    }
+
     cartItems.forEach((item) => {
       if (item.quantity > item.product.stock) {
         throw new BadRequestException(
-          `Product ${item.product.name} is out of stock for requested quantity.`
+          `Product ${item.product.name} is out of stock for requested quantity.`,
         );
       }
     });
@@ -97,7 +123,7 @@ export class OrdersService {
       const basePrice = Number(item.product.basePrice);
       const optionsTotal = item.selectedOptions.reduce(
         (sum, entry) => sum + Number(entry.option.priceDelta),
-        0
+        0,
       );
       const unitPrice = basePrice + optionsTotal;
 
@@ -111,10 +137,15 @@ export class OrdersService {
     });
 
     const shippingFee = Number(payload.shippingFee ?? 0);
-    const paymentMethod = payload.paymentMethod?.trim().toUpperCase() || PAYMENT_METHOD.COD;
-    const totalAmount = enrichedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+    const paymentMethod =
+      payload.paymentMethod?.trim().toUpperCase() || PAYMENT_METHOD.COD;
+    const totalAmount = enrichedItems.reduce(
+      (sum, item) => sum + item.lineTotal,
+      0,
+    );
 
-    let resolvedShippingAddress: Prisma.InputJsonValue | typeof Prisma.DbNull = Prisma.DbNull;
+    let resolvedShippingAddress: Prisma.InputJsonValue | typeof Prisma.DbNull =
+      Prisma.DbNull;
     if (payload.addressId) {
       const saved = await this.prisma.userAddress.findUnique({
         where: { id: payload.addressId },
@@ -129,7 +160,8 @@ export class OrdersService {
         addressId: saved.id,
       };
     } else if (payload.shippingAddress) {
-      resolvedShippingAddress = payload.shippingAddress as Prisma.InputJsonValue;
+      resolvedShippingAddress =
+        payload.shippingAddress as Prisma.InputJsonValue;
     }
 
     let voucherId: number | null = null;
@@ -157,7 +189,7 @@ export class OrdersService {
         acc[sellerId].push(item);
         return acc;
       },
-      {} as Record<number, typeof enrichedItems>
+      {} as Record<number, typeof enrichedItems>,
     );
 
     const order = await this.prisma.$transaction(async (tx) => {
@@ -179,7 +211,10 @@ export class OrdersService {
 
       for (const [sellerKey, sellerItems] of Object.entries(grouped)) {
         const sellerId = Number(sellerKey);
-        const subtotal = sellerItems.reduce((sum, entry) => sum + entry.lineTotal, 0);
+        const subtotal = sellerItems.reduce(
+          (sum, entry) => sum + entry.lineTotal,
+          0,
+        );
 
         const group = await tx.orderGroup.create({
           data: {
@@ -208,7 +243,9 @@ export class OrdersService {
                   optionId: selected.option.id,
                   groupName: selected.option.group.name,
                   optionName: selected.option.name,
-                  priceDelta: new Prisma.Decimal(Number(selected.option.priceDelta)),
+                  priceDelta: new Prisma.Decimal(
+                    Number(selected.option.priceDelta),
+                  ),
                 })),
               },
             },
@@ -229,8 +266,8 @@ export class OrdersService {
           tx.product.update({
             where: { id: entry.cartItem.product.id },
             data: { stock: { decrement: entry.cartItem.quantity } },
-          })
-        )
+          }),
+        ),
       );
 
       if (voucherId !== null) {
@@ -243,10 +280,15 @@ export class OrdersService {
         });
       }
 
+      const orderedCartItemIds = enrichedItems.map(
+        (entry) => entry.cartItem.id,
+      );
       await tx.cartItemOption.deleteMany({
-        where: { cartItem: { cartId: cart.id } },
+        where: { cartItemId: { in: orderedCartItemIds } },
       });
-      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      await tx.cartItem.deleteMany({
+        where: { id: { in: orderedCartItemIds } },
+      });
 
       return createdOrder;
     });
@@ -255,12 +297,21 @@ export class OrdersService {
     let qrInfo: OrderCreateResponseDto['qrInfo'];
     if (paymentMethod === PAYMENT_METHOD.VNPAY && finalAmount > 0) {
       const ipAddr =
-        (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ||
+        (req.headers['x-forwarded-for'] as string | undefined)
+          ?.split(',')[0]
+          ?.trim() ||
         req.ip ||
         '127.0.0.1';
-      paymentUrl = await this.paymentsService.createVnpayPayment(order.id, finalAmount, ipAddr);
+      paymentUrl = await this.paymentsService.createVnpayPayment(
+        order.id,
+        finalAmount,
+        ipAddr,
+      );
     } else if (paymentMethod === PAYMENT_METHOD.QR && finalAmount > 0) {
-      const qr = await this.paymentsService.createQrPayment(order.id, finalAmount);
+      const qr = await this.paymentsService.createQrPayment(
+        order.id,
+        finalAmount,
+      );
       qrInfo = {
         paymentId: qr.paymentId,
         amount: qr.amount,
@@ -297,7 +348,10 @@ export class OrdersService {
         paymentMethod: order.paymentMethod,
         paymentStatus: order.paymentStatus,
         status: order.status,
-        shippingAddress: order.shippingAddress as Record<string, unknown> | null,
+        shippingAddress: order.shippingAddress as Record<
+          string,
+          unknown
+        > | null,
         createdAt: order.createdAt.toISOString(),
         groups: order.orderGroups.map((group) => ({
           id: group.id,
@@ -310,7 +364,10 @@ export class OrdersService {
     };
   }
 
-  async getOrderDetail(req: Request, orderId: number): Promise<OrderDetailResponseDto> {
+  async getOrderDetail(
+    req: Request,
+    orderId: number,
+  ): Promise<OrderDetailResponseDto> {
     const userId = this.getUserIdFromRequest(req);
 
     const order = await this.prisma.order.findUnique({
@@ -344,7 +401,10 @@ export class OrdersService {
         paymentMethod: order.paymentMethod,
         paymentStatus: order.paymentStatus,
         status: order.status,
-        shippingAddress: order.shippingAddress as Record<string, unknown> | null,
+        shippingAddress: order.shippingAddress as Record<
+          string,
+          unknown
+        > | null,
         createdAt: order.createdAt.toISOString(),
         groups: order.orderGroups.map((group) => ({
           id: group.id,
@@ -375,14 +435,19 @@ export class OrdersService {
   async updateGroupStatus(
     req: Request,
     groupId: number,
-    payload: UpdateOrderGroupStatusDto
+    payload: UpdateOrderGroupStatusDto,
   ): Promise<OrderGroupStatusResponseDto> {
     const userId = this.getUserIdFromRequest(req);
     const sellerId = await this.getSellerIdForUser(userId);
     const nextStatus = payload.status?.trim().toUpperCase();
 
-    const isFlowStatus = (ORDER_GROUP_STATUS_FLOW as string[]).includes(nextStatus ?? '');
-    if (!nextStatus || (!isFlowStatus && nextStatus !== ORDER_GROUP_STATUS.CANCELLED)) {
+    const isFlowStatus = (ORDER_GROUP_STATUS_FLOW as string[]).includes(
+      nextStatus ?? '',
+    );
+    if (
+      !nextStatus ||
+      (!isFlowStatus && nextStatus !== ORDER_GROUP_STATUS.CANCELLED)
+    ) {
       throw new BadRequestException('Invalid status.');
     }
 
@@ -439,7 +504,11 @@ export class OrdersService {
     return { groupId: updated.id, status: updated.status };
   }
 
-  async createRefundRequest(req: Request, orderId: number, payload: { reason: string; amount: number }) {
+  async createRefundRequest(
+    req: Request,
+    orderId: number,
+    payload: { reason: string; amount: number },
+  ) {
     const userId = this.getUserIdFromRequest(req);
 
     const order = await this.prisma.order.findUnique({
@@ -455,7 +524,9 @@ export class OrdersService {
       where: { orderId, userId, status: REFUND_REQUEST_STATUS.PENDING },
     });
     if (existing) {
-      throw new BadRequestException('A refund request is already pending for this order.');
+      throw new BadRequestException(
+        'A refund request is already pending for this order.',
+      );
     }
 
     const request = await this.prisma.refundRequest.create({
@@ -471,12 +542,18 @@ export class OrdersService {
     return { refundRequestId: request.id, status: request.status };
   }
 
-  async cancelGroup(req: Request, groupId: number): Promise<OrderGroupStatusResponseDto> {
+  async cancelGroup(
+    req: Request,
+    groupId: number,
+  ): Promise<OrderGroupStatusResponseDto> {
     const userId = this.getUserIdFromRequest(req);
 
     const group = await this.prisma.orderGroup.findUnique({
       where: { id: groupId },
-      include: { order: { select: { userId: true } } },
+      include: {
+        order: { select: { userId: true } },
+        items: { select: { productId: true, quantity: true } },
+      },
     });
 
     if (!group || group.order.userId !== userId) {
@@ -487,20 +564,30 @@ export class OrdersService {
       throw new BadRequestException('Order group cannot be cancelled.');
     }
 
-    const updated = await this.prisma.orderGroup.update({
-      where: { id: groupId },
-      data: { status: ORDER_GROUP_STATUS.CANCELLED },
-      select: { id: true, status: true },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.orderGroup.update({
+        where: { id: groupId },
+        data: { status: ORDER_GROUP_STATUS.CANCELLED },
+      });
+
+      await tx.orderStatusLog.create({
+        data: {
+          orderGroupId: groupId,
+          status: ORDER_GROUP_STATUS.CANCELLED,
+          note: 'Cancelled by buyer',
+        },
+      });
+
+      await Promise.all(
+        group.items.map((item) =>
+          tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } },
+          }),
+        ),
+      );
     });
 
-    await this.prisma.orderStatusLog.create({
-      data: {
-        orderGroupId: groupId,
-        status: ORDER_GROUP_STATUS.CANCELLED,
-        note: 'Cancelled by buyer',
-      },
-    });
-
-    return { groupId: updated.id, status: updated.status };
+    return { groupId, status: ORDER_GROUP_STATUS.CANCELLED };
   }
 }
