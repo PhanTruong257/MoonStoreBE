@@ -17,6 +17,7 @@ import type {
   SellerProfileMeResponseDto,
   SellersModuleDetailResponseDto,
   SellersModuleListResponseDto,
+  ShopStorefrontResponseDto,
 } from './dto/sellers-response.dto';
 import type { CreateProductDto } from './dto/create-product.dto';
 import type { CreateSellerDto } from './dto/create-seller.dto';
@@ -113,6 +114,13 @@ export class SellersController {
   @Get('me/stats')
   findMyStats(@Req() req: Request): Promise<SellerStatsResponseDto> {
     return this.sellersService.getSellerStats(req);
+  }
+
+  @Get(':id/storefront')
+  getShopStorefront(
+    @Param('id', ParseIntPipe) id: number
+  ): Promise<ShopStorefrontResponseDto> {
+    return this.sellersService.getShopStorefront(id);
   }
 
   @Get(':id')

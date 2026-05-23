@@ -22,6 +22,7 @@ import type {
   SellerProfileMeResponseDto,
   SellersModuleDetailResponseDto,
   SellersModuleListResponseDto,
+  ShopStorefrontResponseDto,
 } from './dto/sellers-response.dto';
 import type { CreateProductDto, CreateProductOptionGroupDto } from './dto/create-product.dto';
 import type { CreateSellerDto } from './dto/create-seller.dto';
@@ -143,6 +144,48 @@ export class SellersService {
       module: 'sellers',
       message: 'Detail endpoint scaffolded',
       id,
+    };
+  }
+
+  async getShopStorefront(id: number): Promise<ShopStorefrontResponseDto> {
+    const seller = await this.prisma.seller.findFirst({
+      where: { id, status: SELLER_STATUS.ACTIVE },
+      select: {
+        id: true,
+        shopName: true,
+        description: true,
+        products: {
+          where: { status: PRODUCT_STATUS.ACTIVE },
+          orderBy: { id: 'desc' },
+          select: {
+            id: true,
+            name: true,
+            basePrice: true,
+            imageUrl: true,
+            stock: true,
+          },
+        },
+      },
+    });
+
+    if (!seller) {
+      throw new NotFoundException('Shop not found.');
+    }
+
+    return {
+      shop: {
+        id: seller.id,
+        shopName: seller.shopName,
+        description: seller.description,
+        productCount: seller.products.length,
+        products: seller.products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          basePrice: Number(p.basePrice),
+          imageUrl: p.imageUrl,
+          stock: p.stock,
+        })),
+      },
     };
   }
 

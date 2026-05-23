@@ -60,3 +60,23 @@ export type SellerProductDto = {
 export type CreateProductResponseDto = {
   product: SellerProductDto;
 };
+
+export type ShopStorefrontProductDto = {
+  id: number;
+  name: string;
+  basePrice: number;
+  imageUrl: string;
+  stock: number;
+};
+
+export type ShopStorefrontDto = {
+  id: number;
+  shopName: string;
+  description: string | null;
+  productCount: number;
+  products: ShopStorefrontProductDto[];
+};
+
+export type ShopStorefrontResponseDto = {
+  shop: ShopStorefrontDto;
+};
