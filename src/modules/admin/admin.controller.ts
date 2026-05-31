@@ -151,4 +151,56 @@ export class AdminController {
   getRevenueReport(@Req() req: Request) {
     return this.adminService.getRevenueReport(req);
   }
+
+  @Get('shippers')
+  listShippers(@Req() req: Request, @Query('status') status?: string) {
+    return this.adminService.listShippers(req, status?.trim() || undefined);
+  }
+
+  @Patch('shippers/:id/approve')
+  approveShipper(@Req() req: Request, @Param('id', ParseIntPipe) id: number) {
+    return this.adminService.approveShipper(req, id);
+  }
+
+  @Patch('shippers/:id/reject')
+  rejectShipper(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { reason: string },
+  ) {
+    return this.adminService.rejectShipper(req, id, body.reason);
+  }
+
+  @Patch('shippers/:id/disable')
+  disableShipper(@Req() req: Request, @Param('id', ParseIntPipe) id: number) {
+    return this.adminService.setShipperStatus(req, id, 'disabled');
+  }
+
+  @Patch('shippers/:id/enable')
+  enableShipper(@Req() req: Request, @Param('id', ParseIntPipe) id: number) {
+    return this.adminService.setShipperStatus(req, id, 'active');
+  }
+
+  @Patch('shipments/:shipmentId/assign')
+  assignShipper(
+    @Req() req: Request,
+    @Param('shipmentId', ParseIntPipe) shipmentId: number,
+    @Body() body: { shipperId: number },
+  ) {
+    return this.adminService.assignShipper(req, shipmentId, body.shipperId);
+  }
+
+  @Get('return-requests')
+  listReturnRequests(@Req() req: Request, @Query('status') status?: string) {
+    return this.adminService.listReturnRequests(req, status?.trim() || undefined);
+  }
+
+  @Patch('return-requests/:id/complete')
+  completeReturnRequest(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { note?: string },
+  ) {
+    return this.adminService.completeReturnRequest(req, id, body.note);
+  }
 }

@@ -1,15 +1,3 @@
-export type CartModuleListResponseDto = {
-  module: string;
-  message: string;
-  tables: unknown[];
-};
-
-export type CartModuleDetailResponseDto = {
-  module: string;
-  message: string;
-  id: number;
-};
-
 export type CartItemSelectedOptionDto = {
   optionId: number;
   groupName: string;

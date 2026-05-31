@@ -666,4 +666,104 @@ export class SellersService {
       revenue,
     };
   }
+
+  async findSellerReturnRequests(req: Request, status?: string) {
+    const userId = this.getUserIdFromRequest(req);
+    const sellerId = await this.getSellerIdForUser(userId);
+
+    const requests = await this.prisma.returnRequest.findMany({
+      where: {
+        orderGroup: { sellerId },
+        ...(status ? { status } : {}),
+      },
+      include: {
+        orderGroup: {
+          select: {
+            id: true,
+            orderId: true,
+            items: {
+              select: { id: true, productName: true, quantity: true, imageUrlAtTime: true },
+            },
+          },
+        },
+        user: { select: { id: true, fullName: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      returnRequests: requests.map((r) => ({
+        id: r.id,
+        orderGroupId: r.orderGroupId,
+        type: r.type,
+        reason: r.reason,
+        images: r.images,
+        status: r.status,
+        note: r.note,
+        processedAt: r.processedAt?.toISOString() ?? null,
+        createdAt: r.createdAt.toISOString(),
+        orderGroup: r.orderGroup,
+        user: r.user,
+      })),
+    };
+  }
+
+  async processReturnRequest(
+    req: Request,
+    returnRequestId: number,
+    action: 'APPROVED' | 'REJECTED',
+    note?: string,
+  ) {
+    const userId = this.getUserIdFromRequest(req);
+    const sellerId = await this.getSellerIdForUser(userId);
+
+    const request = await this.prisma.returnRequest.findUnique({
+      where: { id: returnRequestId },
+      include: { orderGroup: { select: { sellerId: true } } },
+    });
+
+    if (!request || request.orderGroup.sellerId !== sellerId) {
+      throw new ForbiddenException('Return request not found.');
+    }
+
+    if (request.status !== 'PENDING') {
+      throw new BadRequestException('Return request is not in PENDING status.');
+    }
+
+    const updated = await this.prisma.returnRequest.update({
+      where: { id: returnRequestId },
+      data: {
+        status: action,
+        note: note?.trim() ?? null,
+        processedAt: new Date(),
+      },
+    });
+
+    return { id: updated.id, status: updated.status };
+  }
+
+  async confirmReturnReceived(req: Request, returnRequestId: number) {
+    const userId = this.getUserIdFromRequest(req);
+    const sellerId = await this.getSellerIdForUser(userId);
+
+    const request = await this.prisma.returnRequest.findUnique({
+      where: { id: returnRequestId },
+      include: { orderGroup: { select: { sellerId: true } } },
+    });
+
+    if (!request || request.orderGroup.sellerId !== sellerId) {
+      throw new ForbiddenException('Return request not found.');
+    }
+
+    if (request.status !== 'APPROVED') {
+      throw new BadRequestException('Return request must be APPROVED before confirming receipt.');
+    }
+
+    const updated = await this.prisma.returnRequest.update({
+      where: { id: returnRequestId },
+      data: { status: 'ITEM_RECEIVED', processedAt: new Date() },
+    });
+
+    return { id: updated.id, status: updated.status };
+  }
 }

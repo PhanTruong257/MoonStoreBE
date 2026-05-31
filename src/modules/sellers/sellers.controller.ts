@@ -116,6 +116,40 @@ export class SellersController {
     return this.sellersService.getSellerStats(req);
   }
 
+  @Get('me/return-requests')
+  findMyReturnRequests(
+    @Req() req: Request,
+    @Param('status') status?: string,
+  ) {
+    return this.sellersService.findSellerReturnRequests(req, status?.trim() || undefined);
+  }
+
+  @Patch('me/return-requests/:id/approve')
+  approveReturnRequest(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { note?: string },
+  ) {
+    return this.sellersService.processReturnRequest(req, id, 'APPROVED', body.note);
+  }
+
+  @Patch('me/return-requests/:id/reject')
+  rejectReturnRequest(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { note?: string },
+  ) {
+    return this.sellersService.processReturnRequest(req, id, 'REJECTED', body.note);
+  }
+
+  @Patch('me/return-requests/:id/confirm-received')
+  confirmReturnReceived(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.sellersService.confirmReturnReceived(req, id);
+  }
+
   @Get(':id/storefront')
   getShopStorefront(
     @Param('id', ParseIntPipe) id: number

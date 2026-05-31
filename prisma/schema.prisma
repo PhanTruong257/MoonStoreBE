@@ -8,24 +8,26 @@ datasource db {
 }
 
 model User {
-  id                 Int             @id @default(autoincrement())
-  email              String          @unique
+  id                 Int              @id @default(autoincrement())
+  email              String           @unique
   password           String
-  fullName           String          @map("full_name")
+  fullName           String           @map("full_name")
   phone              String
   role               String
   status             String
-  createdAt          DateTime        @default(now()) @map("created_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
   addresses          UserAddress[]
   sellerProfile      Seller?
+  shipperProfile     ShipperProfile?
   carts              Cart[]
   orders             Order[]
   reviews            Review[]
   voucherUsages      VoucherUsage[]
-  sentMessages       Message[]       @relation("MessageSender")
+  sentMessages       Message[]        @relation("MessageSender")
   messageReads       MessageRead[]
-  buyerConversations Conversation[]  @relation("ConversationBuyer")
+  buyerConversations Conversation[]   @relation("ConversationBuyer")
   refundRequests     RefundRequest[]
+  returnRequests     ReturnRequest[]
 
   @@map("users")
 }
@@ -57,6 +59,19 @@ model Seller {
   wallet        SellerWallet?
 
   @@map("sellers")
+}
+
+model ShipperProfile {
+  id           Int        @id @default(autoincrement())
+  userId       Int        @unique @map("user_id")
+  vehicleType  String     @map("vehicle_type")
+  status       String
+  rejectReason String?    @map("reject_reason")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  user         User       @relation(fields: [userId], references: [id])
+  shipments    Shipment[]
+
+  @@map("shipper_profiles")
 }
 
 model Category {
@@ -196,6 +211,7 @@ model OrderGroup {
   shipments          Shipment[]
   statusLogs         OrderStatusLog[]
   walletTransactions WalletTransaction[]
+  returnRequests     ReturnRequest[]
 
   @@map("order_groups")
 }
@@ -278,12 +294,15 @@ model PaymentTransaction {
 }
 
 model Shipment {
-  id           Int           @id @default(autoincrement())
-  orderGroupId Int           @map("order_group_id")
+  id           Int             @id @default(autoincrement())
+  orderGroupId Int             @map("order_group_id")
+  shipperId    Int?            @map("shipper_id")
   carrier      String
-  trackingCode String        @map("tracking_code")
+  trackingCode String          @map("tracking_code")
   status       String
-  orderGroup   OrderGroup    @relation(fields: [orderGroupId], references: [id])
+  createdAt    DateTime        @default(now()) @map("created_at")
+  orderGroup   OrderGroup      @relation(fields: [orderGroupId], references: [id])
+  shipper      ShipperProfile? @relation(fields: [shipperId], references: [id])
   logs         ShipmentLog[]
 
   @@map("shipments")
@@ -472,4 +491,21 @@ model RefundRequest {
   user        User      @relation(fields: [userId], references: [id])
 
   @@map("refund_requests")
+}
+
+model ReturnRequest {
+  id           Int        @id @default(autoincrement())
+  orderGroupId Int        @map("order_group_id")
+  userId       Int        @map("user_id")
+  type         String
+  reason       String     @db.Text
+  images       Json?
+  status       String     @default("PENDING")
+  note         String?
+  processedAt  DateTime?  @map("processed_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  orderGroup   OrderGroup @relation(fields: [orderGroupId], references: [id])
+  user         User       @relation(fields: [userId], references: [id])
+
+  @@map("return_requests")
 }

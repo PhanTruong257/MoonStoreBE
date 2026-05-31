@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
@@ -17,7 +18,10 @@ import {
   PAYMENT_METHOD,
   PAYMENT_STATUS,
   REFUND_REQUEST_STATUS,
+  RETURN_REQUEST_STATUS,
+  RETURN_REQUEST_TYPE,
 } from '../../common/constants';
+import type { CreateReturnRequestDto } from './dto/create-return-request.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
 import { VouchersService } from '../vouchers/vouchers.service';
@@ -540,6 +544,91 @@ export class OrdersService {
     });
 
     return { refundRequestId: request.id, status: request.status };
+  }
+
+  async createReturnRequest(
+    req: Request,
+    groupId: number,
+    payload: CreateReturnRequestDto,
+  ) {
+    const userId = this.getUserIdFromRequest(req);
+
+    if (!Object.values(RETURN_REQUEST_TYPE).includes(payload.type as never)) {
+      throw new BadRequestException('Invalid return type. Must be RETURN or EXCHANGE.');
+    }
+
+    const group = await this.prisma.orderGroup.findUnique({
+      where: { id: groupId },
+      include: { order: { select: { userId: true } } },
+    });
+
+    if (!group || group.order.userId !== userId) {
+      throw new NotFoundException('Order group not found.');
+    }
+
+    if (group.status !== ORDER_GROUP_STATUS.DELIVERED) {
+      throw new BadRequestException('Return request is only allowed for delivered orders.');
+    }
+
+    const existing = await this.prisma.returnRequest.findFirst({
+      where: {
+        orderGroupId: groupId,
+        userId,
+        status: { in: [RETURN_REQUEST_STATUS.PENDING, RETURN_REQUEST_STATUS.APPROVED] },
+      },
+    });
+    if (existing) {
+      throw new BadRequestException('A return request is already pending or approved for this group.');
+    }
+
+    const returnRequest = await this.prisma.returnRequest.create({
+      data: {
+        orderGroupId: groupId,
+        userId,
+        type: payload.type,
+        reason: payload.reason,
+        images: payload.images ? (payload.images as Prisma.InputJsonValue) : Prisma.DbNull,
+        status: RETURN_REQUEST_STATUS.PENDING,
+      },
+    });
+
+    return {
+      id: returnRequest.id,
+      type: returnRequest.type,
+      status: returnRequest.status,
+      createdAt: returnRequest.createdAt.toISOString(),
+    };
+  }
+
+  async getGroupReturnRequests(req: Request, groupId: number) {
+    const userId = this.getUserIdFromRequest(req);
+
+    const group = await this.prisma.orderGroup.findUnique({
+      where: { id: groupId },
+      select: { id: true, order: { select: { userId: true } } },
+    });
+
+    if (!group || group.order.userId !== userId) {
+      throw new NotFoundException('Order group not found.');
+    }
+
+    const requests = await this.prisma.returnRequest.findMany({
+      where: { orderGroupId: groupId, userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      returnRequests: requests.map((r) => ({
+        id: r.id,
+        type: r.type,
+        reason: r.reason,
+        images: r.images,
+        status: r.status,
+        note: r.note,
+        processedAt: r.processedAt?.toISOString() ?? null,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    };
   }
 
   async cancelGroup(

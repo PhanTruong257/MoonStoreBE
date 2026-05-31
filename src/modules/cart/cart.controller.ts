@@ -1,9 +1,8 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { CartService } from './cart.service';
 import type {
   CartAddItemResponseDto,
-  CartModuleDetailResponseDto,
-  CartModuleListResponseDto,
   CartRemoveItemResponseDto,
   CartResponseDto,
   CartUpdateItemResponseDto,
@@ -15,24 +14,14 @@ import type { UpdateCartItemDto } from './dto/update-cart-item.dto';
 export class CartController {
   constructor(private readonly cartService: CartService) {}
 
-  @Get()
-  findAll(): CartModuleListResponseDto {
-    return this.cartService.findAll();
-  }
-
-  @Get('user/:userId')
-  getByUser(@Param('userId', ParseIntPipe) userId: number): Promise<CartResponseDto> {
-    return this.cartService.getCartByUser(userId);
-  }
-
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number): CartModuleDetailResponseDto {
-    return this.cartService.findOne(id);
+  @Get('me')
+  getMyCart(@Req() req: Request): Promise<CartResponseDto> {
+    return this.cartService.getMyCart(req);
   }
 
   @Post('items')
-  addItem(@Body() payload: AddToCartDto): Promise<CartAddItemResponseDto> {
-    return this.cartService.addItem(payload);
+  addItem(@Req() req: Request, @Body() payload: AddToCartDto): Promise<CartAddItemResponseDto> {
+    return this.cartService.addItem(req, payload);
   }
 
   @Patch('items/:itemId')

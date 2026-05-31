@@ -4,7 +4,7 @@ import type { Request } from 'express';
 
 import { ensureAdminRole } from './admin-guard.helper';
 import { extractUserIdFromRequest } from './auth-token.helper';
-import { SELLER_STATUS } from '../constants';
+import { SELLER_STATUS, SHIPPER_STATUS } from '../constants';
 import type { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -47,4 +47,24 @@ export const getActiveSellerIdForUser = async (
   }
 
   return seller.id;
+};
+
+/**
+ * Look up the shipper profile for a user and return its id, but only if the
+ * profile is active. Throws ForbiddenException otherwise.
+ */
+export const getActiveShipperIdForUser = async (
+  prisma: PrismaService,
+  userId: number
+): Promise<number> => {
+  const shipper = await prisma.shipperProfile.findUnique({
+    where: { userId },
+    select: { id: true, status: true },
+  });
+
+  if (!shipper || shipper.status !== SHIPPER_STATUS.ACTIVE) {
+    throw new ForbiddenException('Active shipper profile not found.');
+  }
+
+  return shipper.id;
 };

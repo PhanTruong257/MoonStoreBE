@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import type { Request } from 'express';
 
-import { USER_ROLE } from '../../common/constants';
+import { getUserIdFromRequest } from '../../common/auth/request-user.helper';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   CartAddItemResponseDto,
-  CartModuleDetailResponseDto,
-  CartModuleListResponseDto,
   CartRemoveItemResponseDto,
   CartResponseDto,
   CartUpdateItemResponseDto,
@@ -14,23 +14,10 @@ import type { AddToCartDto } from './dto/add-to-cart.dto';
 
 @Injectable()
 export class CartService {
-  constructor(private readonly prisma: PrismaService) {}
-
-  private async resolveUserId(userId?: number) {
-    if (userId) {
-      return userId;
-    }
-
-    const fallback = await this.prisma.user.findFirst({
-      where: { role: USER_ROLE.USER },
-      select: { id: true },
-    });
-    if (!fallback) {
-      throw new BadRequestException('User not found.');
-    }
-
-    return fallback.id;
-  }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   private async getOrCreateCart(userId: number) {
     return (
@@ -59,76 +46,9 @@ export class CartService {
     }
   }
 
-  findAll(): CartModuleListResponseDto {
-    return {
-      module: 'cart',
-      message: 'List endpoint scaffolded',
-      tables: [],
-    };
-  }
-
-  findOne(id: number): CartModuleDetailResponseDto {
-    return {
-      module: 'cart',
-      message: 'Detail endpoint scaffolded',
-      id,
-    };
-  }
-
-  async addItem(payload: AddToCartDto): Promise<CartAddItemResponseDto> {
-    const quantity = payload.quantity && payload.quantity > 0 ? payload.quantity : 1;
-    const userId = await this.resolveUserId(payload.userId);
-    const cart = await this.getOrCreateCart(userId);
-
-    const product = await this.prisma.product.findUnique({
-      where: { id: payload.productId },
-      select: { id: true },
-    });
-    if (!product) {
-      throw new BadRequestException('Product not found.');
-    }
-
-    const optionIds = (payload.optionIds ?? [])
-      .filter((id) => Number.isFinite(id))
-      .map((id) => Number(id));
-    await this.validateOptionsBelongToProduct(product.id, optionIds);
-    const dedupedOptionIds = Array.from(new Set(optionIds)).sort((a, b) => a - b);
-
-    const existingItems = await this.prisma.cartItem.findMany({
-      where: { cartId: cart.id, productId: product.id },
-      include: { selectedOptions: true },
-    });
-
-    const matched = existingItems.find((item) => {
-      const ids = item.selectedOptions.map((entry) => entry.optionId).sort((a, b) => a - b);
-      if (ids.length !== dedupedOptionIds.length) {
-        return false;
-      }
-      return ids.every((value, index) => value === dedupedOptionIds[index]);
-    });
-
-    const item = matched
-      ? await this.prisma.cartItem.update({
-          where: { id: matched.id },
-          data: { quantity: matched.quantity + quantity },
-        })
-      : await this.prisma.cartItem.create({
-          data: {
-            cartId: cart.id,
-            productId: product.id,
-            quantity,
-            selectedOptions: {
-              create: dedupedOptionIds.map((optionId) => ({ optionId })),
-            },
-          },
-        });
-
-    return {
-      cartId: cart.id,
-      itemId: item.id,
-      productId: product.id,
-      quantity: item.quantity,
-    };
+  async getMyCart(req: Request): Promise<CartResponseDto> {
+    const userId = getUserIdFromRequest(req, this.jwtService);
+    return this.getCartByUser(userId);
   }
 
   async getCartByUser(userId: number): Promise<CartResponseDto> {
@@ -191,6 +111,62 @@ export class CartService {
           })),
         };
       }),
+    };
+  }
+
+  async addItem(req: Request, payload: AddToCartDto): Promise<CartAddItemResponseDto> {
+    const userId = getUserIdFromRequest(req, this.jwtService);
+    const quantity = payload.quantity && payload.quantity > 0 ? payload.quantity : 1;
+    const cart = await this.getOrCreateCart(userId);
+
+    const product = await this.prisma.product.findUnique({
+      where: { id: payload.productId },
+      select: { id: true },
+    });
+    if (!product) {
+      throw new BadRequestException('Product not found.');
+    }
+
+    const optionIds = (payload.optionIds ?? [])
+      .filter((id) => Number.isFinite(id))
+      .map((id) => Number(id));
+    await this.validateOptionsBelongToProduct(product.id, optionIds);
+    const dedupedOptionIds = Array.from(new Set(optionIds)).sort((a, b) => a - b);
+
+    const existingItems = await this.prisma.cartItem.findMany({
+      where: { cartId: cart.id, productId: product.id },
+      include: { selectedOptions: true },
+    });
+
+    const matched = existingItems.find((item) => {
+      const ids = item.selectedOptions.map((entry) => entry.optionId).sort((a, b) => a - b);
+      if (ids.length !== dedupedOptionIds.length) {
+        return false;
+      }
+      return ids.every((value, index) => value === dedupedOptionIds[index]);
+    });
+
+    const item = matched
+      ? await this.prisma.cartItem.update({
+          where: { id: matched.id },
+          data: { quantity: matched.quantity + quantity },
+        })
+      : await this.prisma.cartItem.create({
+          data: {
+            cartId: cart.id,
+            productId: product.id,
+            quantity,
+            selectedOptions: {
+              create: dedupedOptionIds.map((optionId) => ({ optionId })),
+            },
+          },
+        });
+
+    return {
+      cartId: cart.id,
+      itemId: item.id,
+      productId: product.id,
+      quantity: item.quantity,
     };
   }
 

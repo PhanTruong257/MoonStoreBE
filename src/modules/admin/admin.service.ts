@@ -11,7 +11,9 @@ import { JwtService } from '@nestjs/jwt';
 import { assertAdminFromRequest } from '../../common/auth/request-user.helper';
 import {
   REFUND_REQUEST_STATUS,
+  RETURN_REQUEST_STATUS,
   SELLER_STATUS,
+  SHIPPER_STATUS,
   USER_ROLE,
   USER_STATUS,
   WITHDRAWAL_STATUS,
@@ -508,5 +510,175 @@ export class AdminService {
         user: updated.user,
       },
     };
+  }
+
+  async listShippers(req: Request, status?: string) {
+    await this.assertAdmin(req);
+
+    const shippers = await this.prisma.shipperProfile.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        userId: true,
+        vehicleType: true,
+        status: true,
+        rejectReason: true,
+        createdAt: true,
+        user: { select: { id: true, fullName: true, email: true, phone: true } },
+      },
+    });
+
+    return { shippers };
+  }
+
+  async approveShipper(req: Request, shipperId: number) {
+    await this.assertAdmin(req);
+
+    const shipper = await this.prisma.shipperProfile.findUnique({ where: { id: shipperId } });
+    if (!shipper) throw new NotFoundException('Shipper profile not found.');
+    if (shipper.status !== SHIPPER_STATUS.PENDING) {
+      throw new BadRequestException('Shipper is not in PENDING status.');
+    }
+
+    const updated = await this.prisma.shipperProfile.update({
+      where: { id: shipperId },
+      data: { status: SHIPPER_STATUS.ACTIVE },
+      include: { user: { select: { id: true, fullName: true, email: true, phone: true } } },
+    });
+
+    return { shipper: updated };
+  }
+
+  async rejectShipper(req: Request, shipperId: number, reason: string) {
+    await this.assertAdmin(req);
+
+    const shipper = await this.prisma.shipperProfile.findUnique({ where: { id: shipperId } });
+    if (!shipper) throw new NotFoundException('Shipper profile not found.');
+    if (shipper.status !== SHIPPER_STATUS.PENDING) {
+      throw new BadRequestException('Shipper is not in PENDING status.');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const profile = await tx.shipperProfile.update({
+        where: { id: shipperId },
+        data: { status: SHIPPER_STATUS.REJECTED, rejectReason: reason },
+        include: { user: { select: { id: true, fullName: true, email: true, phone: true } } },
+      });
+
+      await tx.user.update({
+        where: { id: shipper.userId },
+        data: { role: USER_ROLE.USER },
+      });
+
+      return profile;
+    });
+
+    return { shipper: updated };
+  }
+
+  async setShipperStatus(req: Request, shipperId: number, status: string) {
+    await this.assertAdmin(req);
+
+    const shipper = await this.prisma.shipperProfile.findUnique({ where: { id: shipperId } });
+    if (!shipper) throw new NotFoundException('Shipper profile not found.');
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const profile = await tx.shipperProfile.update({
+        where: { id: shipperId },
+        data: { status },
+        include: { user: { select: { id: true, fullName: true, email: true, phone: true } } },
+      });
+
+      await tx.user.update({
+        where: { id: shipper.userId },
+        data: { role: status === SHIPPER_STATUS.ACTIVE ? USER_ROLE.SHIPPER : USER_ROLE.USER },
+      });
+
+      return profile;
+    });
+
+    return { shipper: updated };
+  }
+
+  async assignShipper(req: Request, shipmentId: number, shipperId: number) {
+    await this.assertAdmin(req);
+
+    const shipment = await this.prisma.shipment.findUnique({ where: { id: shipmentId } });
+    if (!shipment) throw new NotFoundException('Shipment not found.');
+
+    const shipper = await this.prisma.shipperProfile.findUnique({
+      where: { id: shipperId },
+      select: { id: true, status: true },
+    });
+    if (!shipper || shipper.status !== SHIPPER_STATUS.ACTIVE) {
+      throw new BadRequestException('Shipper is not active.');
+    }
+
+    const updated = await this.prisma.shipment.update({
+      where: { id: shipmentId },
+      data: { shipperId, status: 'ASSIGNED' },
+    });
+
+    return { shipmentId: updated.id, shipperId: updated.shipperId, status: updated.status };
+  }
+
+  async listReturnRequests(req: Request, status?: string) {
+    await this.assertAdmin(req);
+
+    const requests = await this.prisma.returnRequest.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { id: true, fullName: true, email: true } },
+        orderGroup: {
+          select: {
+            id: true,
+            orderId: true,
+            seller: { select: { id: true, shopName: true } },
+            items: { select: { id: true, productName: true, quantity: true, imageUrlAtTime: true } },
+          },
+        },
+      },
+    });
+
+    return {
+      returnRequests: requests.map((r) => ({
+        id: r.id,
+        orderGroupId: r.orderGroupId,
+        type: r.type,
+        reason: r.reason,
+        images: r.images,
+        status: r.status,
+        note: r.note,
+        processedAt: r.processedAt?.toISOString() ?? null,
+        createdAt: r.createdAt.toISOString(),
+        user: r.user,
+        orderGroup: r.orderGroup,
+      })),
+    };
+  }
+
+  async completeReturnRequest(req: Request, returnRequestId: number, note?: string) {
+    await this.assertAdmin(req);
+
+    const request = await this.prisma.returnRequest.findUnique({
+      where: { id: returnRequestId },
+    });
+    if (!request) throw new NotFoundException('Return request not found.');
+    if (request.status !== RETURN_REQUEST_STATUS.ITEM_RECEIVED) {
+      throw new BadRequestException('Return request must be ITEM_RECEIVED before completing.');
+    }
+
+    const updated = await this.prisma.returnRequest.update({
+      where: { id: returnRequestId },
+      data: {
+        status: RETURN_REQUEST_STATUS.COMPLETED,
+        note: note?.trim() ?? request.note,
+        processedAt: new Date(),
+      },
+    });
+
+    return { id: updated.id, status: updated.status };
   }
 }

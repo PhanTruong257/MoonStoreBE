@@ -10,6 +10,7 @@ import type {
 import type { CreateOrderDto } from './dto/create-order.dto';
 import type { UpdateOrderGroupStatusDto } from './dto/update-order-group-status.dto';
 import type { CreateRefundRequestDto } from './dto/create-refund-request.dto';
+import type { CreateReturnRequestDto } from './dto/create-return-request.dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -57,5 +58,22 @@ export class OrdersController {
     @Body() payload: CreateRefundRequestDto,
   ) {
     return this.ordersService.createRefundRequest(req, id, payload);
+  }
+
+  @Post('groups/:groupId/return-requests')
+  createReturnRequest(
+    @Req() req: Request,
+    @Param('groupId', ParseIntPipe) groupId: number,
+    @Body() payload: CreateReturnRequestDto,
+  ) {
+    return this.ordersService.createReturnRequest(req, groupId, payload);
+  }
+
+  @Get('groups/:groupId/return-requests')
+  getGroupReturnRequests(
+    @Req() req: Request,
+    @Param('groupId', ParseIntPipe) groupId: number,
+  ) {
+    return this.ordersService.getGroupReturnRequests(req, groupId);
   }
 }
