@@ -17,6 +17,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { AiChatModule } from './modules/ai-chat/ai-chat.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     AdminModule,
     WalletModule,
     UploadsModule,
+    AiChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
