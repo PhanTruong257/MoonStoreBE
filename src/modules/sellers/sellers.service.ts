@@ -489,6 +489,9 @@ export class SellersService {
         basePrice: true,
         stock: true,
         imageUrl: true,
+        category: {
+          select: { name: true },
+        },
       },
     });
 
@@ -499,6 +502,7 @@ export class SellersService {
         description: product.description,
         status: product.status,
         categoryId: product.categoryId,
+        categoryName: product.category?.name,
         brandId: product.brandId,
         basePrice: Number(product.basePrice),
         stock: product.stock,

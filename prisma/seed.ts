@@ -96,18 +96,18 @@ type SeedOptionGroup = {
 
 const buildDefaultOptionGroups = (basePrice: number): SeedOptionGroup[] => [
   {
-    name: 'Color',
+    name: 'Màu sắc',
     required: true,
     multiSelect: false,
     options: [
-      { name: 'Midnight', priceDelta: 0 },
-      { name: 'Silver', priceDelta: 0 },
-      { name: 'Blue', priceDelta: 0 },
-      { name: 'Red', priceDelta: 0 },
+      { name: 'Đen', priceDelta: 0 },
+      { name: 'Trắng', priceDelta: 0 },
+      { name: 'Xanh', priceDelta: 0 },
+      { name: 'Đỏ', priceDelta: 0 },
     ],
   },
   {
-    name: 'Storage',
+    name: 'Dung lượng',
     required: true,
     multiSelect: false,
     options: [
@@ -116,47 +116,107 @@ const buildDefaultOptionGroups = (basePrice: number): SeedOptionGroup[] => [
       { name: '256GB', priceDelta: Math.round(basePrice * 0.15) },
     ],
   },
-  {
-    name: 'RAM',
-    required: true,
-    multiSelect: false,
-    options: [
-      { name: '4GB', priceDelta: 0 },
-      { name: '8GB', priceDelta: Math.round(basePrice * 0.1) },
-    ],
-  },
 ];
 
 const seedCatalog = async (sellerId: number) => {
+  // Categories from mock-data structure (3 levels)
   const categoryTree = [
     {
-      name: 'Danh muc',
+      name: 'Phones & Gadgets',
       children: [
-        'Dien thoai',
-        'Laptop',
-        'May tinh bang',
-        'Dong ho thong minh',
-        'Tai nghe',
-        'Phu kien',
+        {
+          name: 'Phones',
+          children: ['Apple iPhone', 'Samsung Galaxy', 'OPPO', 'Xiaomi', 'HONOR', 'Other Brands', 'AI Phones', 'Foldable Phones', '5G', 'Gaming Phone'],
+        },
+        {
+          name: 'Tablets & Readers',
+          children: ['iPad', 'Samsung Galaxy Tab', 'Honor Pad', 'E-Readers'],
+        },
+        {
+          name: 'Smart Watches',
+          children: ['Apple Watch', 'Samsung Watch', 'Garmin', 'Amazfit'],
+        },
       ],
     },
     {
-      name: 'Phones',
-      children: ['Flagship Phones', 'Budget Phones', 'Foldable Phones'],
+      name: 'Computers & Office',
+      children: [
+        {
+          name: 'Laptops',
+          children: ['MacBook', 'Asus', 'Lenovo', 'Dell', 'Acer', 'HP', 'Gaming Laptops', 'AI Laptops', 'Student Laptops', 'Ultrabooks'],
+        },
+        {
+          name: 'Desktops',
+          children: ['Office PC', 'Gaming PC', 'Workstation PC'],
+        },
+        {
+          name: 'Monitors',
+          children: ['Asus', 'Dell', 'LG', 'MSI', 'Gaming Monitors'],
+        },
+      ],
     },
     {
-      name: 'Computers',
-      children: ['Ultrabooks', 'Gaming Laptops', 'Workstations'],
+      name: 'Home & Appliances',
+      children: [
+        {
+          name: 'Televisions',
+          children: ['LED TV', 'OLED TV', 'QLED TV', 'Mini-LED TV', 'Smart TV'],
+        },
+        {
+          name: 'Air Conditioners',
+          children: ['Single Cooling', 'Dual Cooling', 'Inverter AC'],
+        },
+        {
+          name: 'Refrigerators',
+          children: ['2-Door Fridge', '3-Door Fridge', '4-Door Fridge'],
+        },
+        {
+          name: 'Washing Machines',
+          children: ['Front Load', 'Top Load', 'Washer Dryer'],
+        },
+      ],
     },
-    { name: 'Smart Watch', children: ['Fitness Watches', 'Luxury Watches'] },
-    { name: 'Camera', children: ['DSLR Cameras', 'Mirrorless Cameras'] },
-    { name: 'Headphones', children: ['Earbuds', 'Over-Ear'] },
-    { name: 'Gaming', children: ['Controllers', 'Keyboards'] },
-    { name: 'Fashion', children: ['Hoodies', 'Jackets'] },
-    { name: 'Furniture', children: ['Desks', 'Chairs'] },
+    {
+      name: 'Accessories & Gaming',
+      children: [
+        {
+          name: 'Headphones',
+          children: ['True Wireless', 'Over-Ear', 'Gaming Headset'],
+        },
+        {
+          name: 'Phone Accessories',
+          children: ['Cases', 'Screen Protectors', 'Power Banks', 'Fast Chargers', 'Cables'],
+        },
+        {
+          name: 'Laptop Accessories',
+          children: ['Mouse', 'Keyboard', 'Backpack', 'Laptop Stand', 'USB Hub'],
+        },
+        {
+          name: 'Gaming Gear',
+          children: ['Gaming Keyboard', 'Gaming Mouse', 'Gaming Headset', 'Game Controller'],
+        },
+      ],
+    },
   ];
 
-  const brandNames = ['Nova', 'PixelPulse', 'Orbit', 'LunaTech'];
+  // Brands from mock-data
+  const brandNames = [
+    'Apple',
+    'Samsung',
+    'OPPO',
+    'Xiaomi',
+    'HONOR',
+    'Asus',
+    'Lenovo',
+    'Dell',
+    'Acer',
+    'HP',
+    'Sony',
+    'LG',
+    'Garmin',
+    'Amazfit',
+    'Logitech',
+  ];
 
   const categories = new Map<string, number>();
   const getOrCreateCategory = async (name: string, parentId?: number) => {
@@ -171,19 +231,30 @@ const seedCatalog = async (sellerId: number) => {
     );
   };
 
+  // Create category hierarchy (3 levels)
   for (const parent of categoryTree) {
     const parentCategory = await getOrCreateCategory(parent.name);
     categories.set(parent.name, parentCategory.id);
 
-    for (const childName of parent.children) {
+    for (const child of parent.children) {
+      const childName = typeof child === 'string' ? child : child.name;
       const childCategory = await getOrCreateCategory(
         childName,
         parentCategory.id,
       );
       categories.set(childName, childCategory.id);
+
+      // Level 3: sub-children
+      if (typeof child === 'object' && child.children) {
+        for (const subchildName of child.children) {
+          const subchildCategory = await getOrCreateCategory(subchildName, childCategory.id);
+          categories.set(subchildName, subchildCategory.id);
+        }
+      }
     }
   }
 
+  // Create brands
   const brands = new Map<string, number>();
   for (const name of brandNames) {
     const existing = await prisma.brand.findFirst({ where: { name } });
@@ -196,54 +267,309 @@ const seedCatalog = async (sellerId: number) => {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)+/g, '');
-  const getImageUrl = (slug: string, index: number) =>
-    `/images/products/${slug}-${index}.jpg`;
 
-  const subcategoryConfigs = [
-    { name: 'Flagship Phones', models: ['X1', 'X2', 'Ultra'], titleSuffix: 'Phone', description: 'Flagship OLED smartphone with 5G and pro cameras.', basePrice: 18000000, priceStep: 2000000, imageTag: 'flagship-phone' },
-    { name: 'Budget Phones', models: ['A1', 'A2', 'Lite'], titleSuffix: 'Phone', description: 'Affordable smartphone with long battery life.', basePrice: 4500000, priceStep: 500000, imageTag: 'budget-phone' },
-    { name: 'Foldable Phones', models: ['Fold X', 'Fold Z', 'Flip Mini'], titleSuffix: 'Phone', description: 'Foldable display with premium build.', basePrice: 30000000, priceStep: 3000000, imageTag: 'foldable-phone' },
-    { name: 'Ultrabooks', models: ['Air 13', 'Air 14', 'Slim 15'], titleSuffix: 'Ultrabook', description: 'Ultralight laptop with all-day battery.', basePrice: 22000000, priceStep: 3000000, imageTag: 'ultrabook' },
-    { name: 'Gaming Laptops', models: ['Pro 15', 'Pro 17', 'Max 16'], titleSuffix: 'Gaming Laptop', description: 'High-performance gaming laptop with RTX graphics.', basePrice: 28000000, priceStep: 4000000, imageTag: 'gaming-laptop' },
-    { name: 'Workstations', models: ['Studio 14', 'Studio 16', 'Creator 17'], titleSuffix: 'Workstation', description: 'Creator workstation with pro-grade performance.', basePrice: 35000000, priceStep: 5000000, imageTag: 'workstation-laptop' },
-    { name: 'Fitness Watches', models: ['Active S', 'Active Pro', 'Run X'], titleSuffix: 'Watch', description: 'Fitness tracking with heart-rate monitoring.', basePrice: 3500000, priceStep: 500000, imageTag: 'fitness-watch' },
-    { name: 'Luxury Watches', models: ['Lux One', 'Lux Two', 'Lux Elite'], titleSuffix: 'Watch', description: 'Premium watch with sapphire glass.', basePrice: 8000000, priceStep: 1000000, imageTag: 'luxury-watch' },
-    { name: 'DSLR Cameras', models: ['DSLR 24', 'DSLR 28', 'DSLR 32'], titleSuffix: 'Camera', description: 'DSLR camera with interchangeable lens.', basePrice: 18000000, priceStep: 2000000, imageTag: 'dslr-camera' },
-    { name: 'Mirrorless Cameras', models: ['Mirror 4K', 'Mirror Pro', 'Mirror Lite'], titleSuffix: 'Camera', description: 'Compact mirrorless camera with 4K video.', basePrice: 22000000, priceStep: 2500000, imageTag: 'mirrorless-camera' },
-    { name: 'Earbuds', models: ['Air Buds', 'Air Buds Plus', 'Air Buds Pro'], titleSuffix: 'Earbuds', description: 'Noise-canceling wireless earbuds.', basePrice: 1500000, priceStep: 300000, imageTag: 'earbuds' },
-    { name: 'Over-Ear', models: ['Studio', 'Studio Pro', 'Studio Max'], titleSuffix: 'Headset', description: 'Over-ear headset with studio tuning.', basePrice: 3000000, priceStep: 500000, imageTag: 'over-ear-headset' },
-    { name: 'Controllers', models: ['Gamepad X', 'Gamepad Pro', 'Gamepad Air'], titleSuffix: 'Controller', description: 'Low-latency controller for PC and console.', basePrice: 800000, priceStep: 200000, imageTag: 'game-controller' },
-    { name: 'Keyboards', models: ['RGB Mech', 'RGB Mech Pro', 'RGB Compact'], titleSuffix: 'Keyboard', description: 'Mechanical keyboard with hot-swap switches.', basePrice: 1200000, priceStep: 300000, imageTag: 'mechanical-keyboard' },
-    { name: 'Hoodies', models: ['Street', 'Street Pro', 'Street Lite'], titleSuffix: 'Hoodie', description: 'Soft cotton hoodie with relaxed fit.', basePrice: 350000, priceStep: 50000, imageTag: 'hoodie' },
-    { name: 'Jackets', models: ['Denim', 'Denim Pro', 'Denim Lite'], titleSuffix: 'Jacket', description: 'Classic denim jacket with durable fabric.', basePrice: 500000, priceStep: 80000, imageTag: 'denim-jacket' },
-    { name: 'Desks', models: ['Minimal', 'Minimal Pro', 'Minimal Mini'], titleSuffix: 'Desk', description: 'Wood desk with clean cable management.', basePrice: 3500000, priceStep: 500000, imageTag: 'wood-desk' },
-    { name: 'Chairs', models: ['Lounge', 'Lounge Pro', 'Lounge Lite'], titleSuffix: 'Chair', description: 'Ergonomic lounge chair with breathable fabric.', basePrice: 2500000, priceStep: 400000, imageTag: 'lounge-chair' },
+  const getImageUrl = (slug: string) => `/images/products/${slug}.jpg`;
+
+  // Product specs based on categories
+  const productSpecs = [
+    // Điện thoại
+    {
+      category: 'Điện thoại',
+      brand: 'Apple',
+      name: 'iPhone 15 Pro Max',
+      description:
+        'Smartphone flagship với màn hình Super Retina XDR, chip A17 Pro',
+      basePrice: 28000000,
+      stock: 50,
+    },
+    {
+      category: 'Điện thoại',
+      brand: 'Samsung',
+      name: 'Samsung Galaxy S24 Ultra',
+      description: 'Điện thoại cao cấp với camera 200MP, màn hình 6.8 inch',
+      basePrice: 25000000,
+      stock: 45,
+    },
+    {
+      category: 'Điện thoại',
+      brand: 'OPPO',
+      name: 'OPPO Reno 11 Pro',
+      description: 'Reno series cao cấp với camera night mode tuyệt vời',
+      basePrice: 15000000,
+      stock: 60,
+    },
+    {
+      category: 'Điện thoại',
+      brand: 'Xiaomi',
+      name: 'Xiaomi 14 Ultra',
+      description: 'Flagship Xiaomi với Leica camera system',
+      basePrice: 18000000,
+      stock: 55,
+    },
+    // Máy tính bảng
+    {
+      category: 'Máy tính bảng',
+      brand: 'Apple',
+      name: 'iPad Pro 12.9 M3',
+      description: 'Máy tính bảng chuyên nghiệp với chip M3',
+      basePrice: 20000000,
+      stock: 30,
+    },
+    {
+      category: 'Máy tính bảng',
+      brand: 'Samsung',
+      name: 'Samsung Galaxy Tab S10',
+      description: 'Tablet Android cao cấp 14.6 inch',
+      basePrice: 18000000,
+      stock: 25,
+    },
+    // Smartwatch
+    {
+      category: 'Smartwatch',
+      brand: 'Apple',
+      name: 'Apple Watch Series 9',
+      description: 'Smartwatch tích hợp sức khỏe toàn diện',
+      basePrice: 8000000,
+      stock: 40,
+    },
+    {
+      category: 'Smartwatch',
+      brand: 'Garmin',
+      name: 'Garmin Epix Pro',
+      description: 'Smartwatch thể thao với GPS tuyệt vời',
+      basePrice: 12000000,
+      stock: 35,
+    },
+    // Laptop
+    {
+      category: 'Laptop',
+      brand: 'Apple',
+      name: 'MacBook Pro 16 M3 Max',
+      description: 'Laptop chuyên nghiệp mạnh nhất của Apple',
+      basePrice: 45000000,
+      stock: 20,
+    },
+    {
+      category: 'Laptop',
+      brand: 'Asus',
+      name: 'Asus VivoBook 15 OLED',
+      description: 'Laptop sinh viên với màn hình OLED',
+      basePrice: 12000000,
+      stock: 50,
+    },
+    {
+      category: 'Laptop',
+      brand: 'Lenovo',
+      name: 'Lenovo ThinkBook 14',
+      description: 'Laptop văn phòng chuyên nghiệp',
+      basePrice: 10000000,
+      stock: 55,
+    },
+    {
+      category: 'Laptop',
+      brand: 'Dell',
+      name: 'Dell XPS 15',
+      description: 'Laptop cao cấp cho designer và creator',
+      basePrice: 38000000,
+      stock: 25,
+    },
+    // PC - Máy tính để bàn
+    {
+      category: 'PC - Máy tính để bàn',
+      brand: 'Asus',
+      name: 'Asus ROG Strix GT16',
+      description: 'PC gaming cao cấp',
+      basePrice: 50000000,
+      stock: 15,
+    },
+    {
+      category: 'PC - Máy tính để bàn',
+      brand: 'Dell',
+      name: 'Dell XPS Desktop',
+      description: 'Máy tính để bàn chuyên nghiệp',
+      basePrice: 35000000,
+      stock: 20,
+    },
+    // Màn hình
+    {
+      category: 'Màn hình',
+      brand: 'LG',
+      name: 'LG UltraWide 38"',
+      description: 'Màn hình ultrawide cho công việc sáng tạo',
+      basePrice: 15000000,
+      stock: 30,
+    },
+    {
+      category: 'Màn hình',
+      brand: 'Dell',
+      name: 'Dell S3423DWC',
+      description: 'Màn hình cong 34 inch độ phân giải cao',
+      basePrice: 12000000,
+      stock: 35,
+    },
+    // TV
+    {
+      category: 'TV',
+      brand: 'LG',
+      name: 'LG OLED 55" C4',
+      description: 'TV OLED cao cấp với hình ảnh tuyệt vời',
+      basePrice: 25000000,
+      stock: 25,
+    },
+    {
+      category: 'TV',
+      brand: 'Sony',
+      name: 'Sony Bravia 65" K-95XR',
+      description: 'TV cao cấp nhất của Sony',
+      basePrice: 35000000,
+      stock: 20,
+    },
+    {
+      category: 'TV',
+      brand: 'Samsung',
+      name: 'Samsung The Wall Professional',
+      description: 'TV micro-LED 89 inch chuyên nghiệp',
+      basePrice: 200000000,
+      stock: 5,
+    },
+    // Điều hòa
+    {
+      category: 'Điều hòa',
+      brand: 'Daikin',
+      name: 'Daikin Inverter 1.5HP',
+      description: 'Điều hòa tiết kiệm điện',
+      basePrice: 8000000,
+      stock: 40,
+    },
+    {
+      category: 'Điều hòa',
+      brand: 'LG',
+      name: 'LG Inverter 2HP V24',
+      description: 'Điều hòa LG cao cấp với tính năng sạch khuẩn',
+      basePrice: 12000000,
+      stock: 35,
+    },
+    // Tủ lạnh
+    {
+      category: 'Tủ lạnh',
+      brand: 'Samsung',
+      name: 'Samsung RF60A90R177 Family Hub',
+      description: 'Tủ lạnh thông minh 4 cửa',
+      basePrice: 25000000,
+      stock: 20,
+    },
+    {
+      category: 'Tủ lạnh',
+      brand: 'LG',
+      name: 'LG GR-X227GSV',
+      description: 'Tủ lạnh 595L tiêu chuẩn Châu Âu',
+      basePrice: 20000000,
+      stock: 25,
+    },
+    // Máy giặt
+    {
+      category: 'Máy giặt',
+      brand: 'Samsung',
+      name: 'Samsung WA21M8700GW',
+      description: 'Máy giặt cửa trước 21kg',
+      basePrice: 18000000,
+      stock: 30,
+    },
+    {
+      category: 'Máy giặt',
+      brand: 'LG',
+      name: 'LG FV1450S3W',
+      description: 'Máy giặt LG AI DD 14.5kg',
+      basePrice: 16000000,
+      stock: 35,
+    },
+    // Tai nghe
+    {
+      category: 'Tai nghe',
+      brand: 'Apple',
+      name: 'AirPods Pro (2nd Gen)',
+      description: 'Tai nghe không dây cao cấp của Apple',
+      basePrice: 6000000,
+      stock: 60,
+    },
+    {
+      category: 'Tai nghe',
+      brand: 'Sony',
+      name: 'Sony WH-1000XM5',
+      description: 'Tai nghe chùm quá tai khử tiếng ồn tốt nhất',
+      basePrice: 9000000,
+      stock: 40,
+    },
+    {
+      category: 'Tai nghe',
+      brand: 'Logitech',
+      name: 'Logitech G Pro X',
+      description: 'Tai nghe gaming chuyên nghiệp',
+      basePrice: 4000000,
+      stock: 50,
+    },
+    // Phụ kiện điện thoại
+    {
+      category: 'Phụ kiện điện thoại',
+      brand: 'Apple',
+      name: 'Apple MagSafe Charger',
+      description: 'Sạc nhanh không dây MagSafe',
+      basePrice: 1500000,
+      stock: 100,
+    },
+    {
+      category: 'Phụ kiện điện thoại',
+      brand: 'Samsung',
+      name: 'Samsung Galaxy Buds2 Pro',
+      description: 'Tai nghe true wireless của Samsung',
+      basePrice: 3500000,
+      stock: 70,
+    },
+    // Phụ kiện laptop
+    {
+      category: 'Phụ kiện laptop',
+      brand: 'Logitech',
+      name: 'Logitech MX Master 3S',
+      description: 'Chuột không dây chuyên nghiệp',
+      basePrice: 2500000,
+      stock: 80,
+    },
+    {
+      category: 'Phụ kiện laptop',
+      brand: 'Asus',
+      name: 'Asus ProArt Backpack',
+      description: 'Balo laptop cao cấp cho creator',
+      basePrice: 2000000,
+      stock: 60,
+    },
+    // Gaming gear
+    {
+      category: 'Gaming gear',
+      brand: 'Logitech',
+      name: 'Logitech G502 HERO',
+      description: 'Chuột gaming cơ học tiên tiến',
+      basePrice: 1800000,
+      stock: 90,
+    },
+    {
+      category: 'Gaming gear',
+      brand: 'Asus',
+      name: 'Asus ROG Ally',
+      description: 'Handheld gaming console từ Asus',
+      basePrice: 10000000,
+      stock: 40,
+    },
   ];
 
-  const productSpecs = subcategoryConfigs.flatMap((config) =>
-    config.models.map((model, index) => {
-      const brand =
-        brandNames[(index + config.name.length) % brandNames.length];
-      const name = `${brand} ${model} ${config.titleSuffix}`.trim();
-      const imageBase = slugify(`${brand}-${model}-${config.imageTag}`);
-
-      return {
-        name,
-        description: config.description,
-        category: config.name,
-        brand,
-        status: 'active',
-        basePrice: config.basePrice + config.priceStep * index,
-        stock: Math.max(10, 60 - index * 10),
-        imageUrl: getImageUrl(imageBase, 1),
-      };
-    }),
-  );
-
+  // Create products
   for (const spec of productSpecs) {
     const categoryId = categories.get(spec.category);
     const brandId = brands.get(spec.brand);
+
     if (!categoryId || !brandId) {
+      console.warn(
+        `Skipping product ${spec.name}: category or brand not found`,
+      );
       continue;
     }
 
@@ -262,8 +588,8 @@ const seedCatalog = async (sellerId: number) => {
           brandId,
           basePrice: new Prisma.Decimal(spec.basePrice),
           stock: spec.stock,
-          imageUrl: spec.imageUrl,
-          status: spec.status,
+          imageUrl: getImageUrl(slugify(spec.name)),
+          status: 'active',
         },
       }));
 
@@ -272,16 +598,14 @@ const seedCatalog = async (sellerId: number) => {
         where: { id: product.id },
         data: {
           description: spec.description,
-          categoryId,
-          brandId,
           basePrice: new Prisma.Decimal(spec.basePrice),
           stock: spec.stock,
-          imageUrl: spec.imageUrl,
-          status: spec.status,
+          status: 'active',
         },
       });
     }
 
+    // Create option groups if not exist
     const existingGroupCount = await prisma.optionGroup.count({
       where: { productId: product.id },
     });
@@ -362,20 +686,30 @@ const seedCart = async (userId: number) => {
 };
 
 const main = async () => {
+  console.log('Starting database seed...');
   await seedAdmin();
+  console.log('✓ Admin user created');
+
   const { sellerId } = await seedSeller();
+  console.log('✓ Seller user and profile created');
+
   const { userId } = await seedUser();
+  console.log('✓ Normal user created');
 
   if (sellerId) {
     await seedCatalog(sellerId);
+    console.log('✓ Categories and products created');
   }
 
   await seedCart(userId);
+  console.log('✓ Cart items created');
+
+  console.log('✅ Database seeded successfully!');
 };
 
 main()
   .catch((error) => {
-    console.error('Seed failed:', error);
+    console.error('❌ Seed failed:', error);
     process.exitCode = 1;
   })
   .finally(async () => {

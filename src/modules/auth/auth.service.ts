@@ -92,12 +92,12 @@ export class AuthService {
     const password = payload.password?.trim();
 
     if (!email || !password || !fullName) {
-      throw new BadRequestException('Missing required fields.');
+      throw new BadRequestException('Vui lòng điền đầy đủ thông tin.');
     }
 
     const existingUser = await this.prisma.user.findFirst({ where: { email } });
     if (existingUser) {
-      throw new ConflictException('Email already exists.');
+      throw new ConflictException('Email này đã được đăng ký.');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -129,21 +129,21 @@ export class AuthService {
     const password = payload.password?.trim();
 
     if (!email || !password) {
-      throw new UnauthorizedException('Invalid credentials.');
+      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác.');
     }
 
     const user = await this.prisma.user.findFirst({ where: { email } });
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials.');
+      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác.');
     }
 
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
-      throw new UnauthorizedException('Invalid credentials.');
+      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác.');
     }
 
     if (user.status !== USER_STATUS.ACTIVE) {
-      throw new UnauthorizedException('Account is disabled.');
+      throw new UnauthorizedException('Tài khoản này đã bị vô hiệu hóa.');
     }
 
     const tokens = this.buildTokens({
@@ -158,14 +158,14 @@ export class AuthService {
 
   logout(res: Response): AuthLogoutResponseDto {
     this.clearAuthCookies(res);
-    return { message: 'Logged out' };
+    return { message: 'Đã đăng xuất' };
   }
 
   async me(req: Request): Promise<AuthUserResponseDto> {
     const cookies = req.cookies as Record<string, string> | undefined;
     const token = cookies?.[ACCESS_COOKIE_NAME];
     if (!token) {
-      throw new UnauthorizedException('Missing access token.');
+      throw new UnauthorizedException('Vui lòng đăng nhập lại.');
     }
 
     try {
@@ -188,12 +188,12 @@ export class AuthService {
       });
 
       if (!user) {
-        throw new UnauthorizedException('User not found.');
+        throw new UnauthorizedException('Người dùng không tồn tại.');
       }
 
       return { user: this.toPublicUser(user) };
     } catch {
-      throw new UnauthorizedException('Invalid access token.');
+      throw new UnauthorizedException('Token không hợp lệ. Vui lòng đăng nhập lại.');
     }
   }
 }
