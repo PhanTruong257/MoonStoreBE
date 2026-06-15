@@ -716,7 +716,7 @@ export class SellersService {
     req: Request,
     returnRequestId: number,
     action: 'APPROVED' | 'REJECTED',
-    note?: string,
+    note?: string
   ) {
     const userId = this.getUserIdFromRequest(req);
     const sellerId = await this.getSellerIdForUser(userId);

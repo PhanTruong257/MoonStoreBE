@@ -63,7 +63,9 @@ export class EmbeddingService {
     if (res.status === 429 && attempt <= MAX_RETRIES) {
       const body = (await res.json()) as GoogleErrorBody;
       const delayMs = parseRetryDelay(body);
-      this.logger.warn(`Rate limited (attempt ${attempt}/${MAX_RETRIES}), retrying in ${delayMs / 1000}s...`);
+      this.logger.warn(
+        `Rate limited (attempt ${attempt}/${MAX_RETRIES}), retrying in ${delayMs / 1000}s...`
+      );
       await new Promise((resolve) => setTimeout(resolve, delayMs));
       return this.batchEmbedWithRetry(chunk, attempt + 1);
     }

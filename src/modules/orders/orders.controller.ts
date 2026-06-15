@@ -55,7 +55,7 @@ export class OrdersController {
   createRefundRequest(
     @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
-    @Body() payload: CreateRefundRequestDto,
+    @Body() payload: CreateRefundRequestDto
   ) {
     return this.ordersService.createRefundRequest(req, id, payload);
   }
@@ -64,16 +64,13 @@ export class OrdersController {
   createReturnRequest(
     @Req() req: Request,
     @Param('groupId', ParseIntPipe) groupId: number,
-    @Body() payload: CreateReturnRequestDto,
+    @Body() payload: CreateReturnRequestDto
   ) {
     return this.ordersService.createReturnRequest(req, groupId, payload);
   }
 
   @Get('groups/:groupId/return-requests')
-  getGroupReturnRequests(
-    @Req() req: Request,
-    @Param('groupId', ParseIntPipe) groupId: number,
-  ) {
+  getGroupReturnRequests(@Req() req: Request, @Param('groupId', ParseIntPipe) groupId: number) {
     return this.ordersService.getGroupReturnRequests(req, groupId);
   }
 }

@@ -3,6 +3,7 @@ import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 
 import { assertAdminFromRequest } from '../../common/auth/request-user.helper';
+import { ORDER_GROUP_STATUS } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   AdminOrderDetailResponseDto,
@@ -15,6 +16,22 @@ type OrderListFilters = {
   sellerId?: number;
   userId?: number;
 };
+
+const STATUS_PRIORITY = [
+  ORDER_GROUP_STATUS.DELIVERED,
+  ORDER_GROUP_STATUS.SHIPPING,
+  ORDER_GROUP_STATUS.CONFIRMED,
+  ORDER_GROUP_STATUS.CANCELLED,
+  ORDER_GROUP_STATUS.PENDING,
+];
+
+function deriveEffectiveStatus(groupStatuses: string[]): string {
+  if (!groupStatuses.length) return ORDER_GROUP_STATUS.PENDING;
+  for (const s of STATUS_PRIORITY) {
+    if (groupStatuses.includes(s)) return s;
+  }
+  return groupStatuses[0];
+}
 
 @Injectable()
 export class AdminOrdersService {
@@ -30,9 +47,17 @@ export class AdminOrdersService {
   async list(req: Request, filters: OrderListFilters): Promise<AdminOrderListResponseDto> {
     await this.assertAdmin(req);
 
-    const where: Record<string, unknown> = {};
+    const groupFilter: Record<string, unknown> = {};
     if (filters.status) {
-      where.status = filters.status;
+      groupFilter.status = filters.status;
+    }
+    if (filters.sellerId) {
+      groupFilter.sellerId = filters.sellerId;
+    }
+
+    const where: Record<string, unknown> = {};
+    if (Object.keys(groupFilter).length) {
+      where.orderGroups = { some: groupFilter };
     }
     if (filters.paymentStatus) {
       where.paymentStatus = filters.paymentStatus;
@@ -40,16 +65,13 @@ export class AdminOrdersService {
     if (filters.userId) {
       where.userId = filters.userId;
     }
-    if (filters.sellerId) {
-      where.orderGroups = { some: { sellerId: filters.sellerId } };
-    }
 
     const orders = await this.prisma.order.findMany({
       where,
       orderBy: { id: 'desc' },
       include: {
         user: { select: { fullName: true } },
-        orderGroups: { select: { id: true } },
+        orderGroups: { select: { id: true, status: true } },
       },
     });
 
@@ -64,7 +86,7 @@ export class AdminOrdersService {
         finalAmount: Number(order.finalAmount),
         paymentMethod: order.paymentMethod,
         paymentStatus: order.paymentStatus,
-        status: order.status,
+        status: deriveEffectiveStatus(order.orderGroups.map((g) => g.status)),
         createdAt: order.createdAt.toISOString(),
         groupCount: order.orderGroups.length,
       })),

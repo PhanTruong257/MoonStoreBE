@@ -3,8 +3,7 @@
 /node_modules
 /build
 
-# uploaded files (served via /uploads static)
-/uploads
+ 
 
 # Logs
 logs

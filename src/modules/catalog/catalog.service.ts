@@ -8,6 +8,7 @@ import type {
   CatalogModuleListResponseDto,
   CatalogProductDetailResponseDto,
   CatalogProductsResponseDto,
+  ProductHighlightDto,
 } from './dto/catalog-response.dto';
 
 @Injectable()
@@ -135,6 +136,7 @@ export class CatalogService {
         basePrice: Number(product.basePrice),
         stock: product.stock,
         imageUrl: product.imageUrl,
+        highlights: (product.highlights as ProductHighlightDto[] | null) ?? null,
         averageRating: Math.round(averageRating * 10) / 10,
         totalReviews,
         sellerId: product.seller.id,

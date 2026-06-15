@@ -16,7 +16,7 @@ import type { AddToCartDto } from './dto/add-to-cart.dto';
 export class CartService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
+    private readonly jwtService: JwtService
   ) {}
 
   private async getOrCreateCart(userId: number) {
@@ -170,17 +170,29 @@ export class CartService {
     };
   }
 
-  async updateItemQuantity(itemId: number, quantity: number): Promise<CartUpdateItemResponseDto> {
+  private async getOwnedCartItem(req: Request, itemId: number) {
+    const userId = getUserIdFromRequest(req, this.jwtService);
+    const existing = await this.prisma.cartItem.findUnique({
+      where: { id: itemId },
+      select: { id: true, cart: { select: { userId: true } } },
+    });
+    // Treat someone else's item as "not found" so we don't leak its existence.
+    if (!existing || existing.cart.userId !== userId) {
+      throw new BadRequestException('Cart item not found.');
+    }
+    return existing;
+  }
+
+  async updateItemQuantity(
+    req: Request,
+    itemId: number,
+    quantity: number
+  ): Promise<CartUpdateItemResponseDto> {
     if (!quantity || quantity < 1) {
       throw new BadRequestException('Quantity must be at least 1.');
     }
 
-    const existing = await this.prisma.cartItem.findUnique({
-      where: { id: itemId },
-    });
-    if (!existing) {
-      throw new BadRequestException('Cart item not found.');
-    }
+    await this.getOwnedCartItem(req, itemId);
 
     const item = await this.prisma.cartItem.update({
       where: { id: itemId },
@@ -190,13 +202,8 @@ export class CartService {
     return { itemId: item.id, quantity: item.quantity };
   }
 
-  async removeItem(itemId: number): Promise<CartRemoveItemResponseDto> {
-    const existing = await this.prisma.cartItem.findUnique({
-      where: { id: itemId },
-    });
-    if (!existing) {
-      throw new BadRequestException('Cart item not found.');
-    }
+  async removeItem(req: Request, itemId: number): Promise<CartRemoveItemResponseDto> {
+    await this.getOwnedCartItem(req, itemId);
 
     await this.prisma.cartItem.delete({ where: { id: itemId } });
     return { itemId };

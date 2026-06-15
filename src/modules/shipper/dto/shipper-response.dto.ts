@@ -1,7 +1,6 @@
 export interface ShipperApplyResponseDto {
   id: number;
   userId: number;
-  vehicleType: string;
   status: string;
   createdAt: string;
 }
@@ -9,7 +8,6 @@ export interface ShipperApplyResponseDto {
 export interface ShipperProfileResponseDto {
   id: number;
   userId: number;
-  vehicleType: string;
   status: string;
   rejectReason: string | null;
   createdAt: string;

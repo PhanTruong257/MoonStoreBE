@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseIntPipe,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 
 import { ChatService } from './chat.service';
@@ -17,10 +9,7 @@ import type {
   CreateConversationResponseDto,
   UnreadCountResponseDto,
 } from './dto/conversation-response.dto';
-import type {
-  MarkReadResponseDto,
-  SendMessageResponseDto,
-} from './dto/message-response.dto';
+import type { MarkReadResponseDto, SendMessageResponseDto } from './dto/message-response.dto';
 import type { SendMessageDto } from './dto/send-message.dto';
 
 @Controller('chat')

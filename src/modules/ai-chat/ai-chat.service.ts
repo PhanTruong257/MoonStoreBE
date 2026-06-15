@@ -10,19 +10,29 @@ import { EmbeddingService } from './embedding.service';
 import { VectorStoreService } from './vector-store.service';
 import type { AiChatHistoryItem } from './dto/ai-chat.dto';
 
-const CHAT_MODEL = 'gemini-2.0-flash';
+const CHAT_MODEL = 'gemini-2.5-flash';
 const MAX_HISTORY_TURNS = 6;
 const RETRIEVAL_TOP_K = 5;
 const CHUNK_BATCH_SIZE = 20;
 
 const SYSTEM_PROMPT = `Bạn là trợ lý AI của Moon Store - một sàn thương mại điện tử.
-Nhiệm vụ: Tư vấn và hỗ trợ khách hàng tìm kiếm sản phẩm phù hợp.
+Nhiệm vụ: Tư vấn sản phẩm và giải đáp các câu hỏi thường gặp cho khách hàng.
+
+Thông tin chung về Moon Store (dùng để trả lời câu hỏi thường gặp - FAQ):
+- Đặt hàng: Thêm sản phẩm vào giỏ, mở giỏ hàng, chọn sản phẩm muốn mua, chọn địa chỉ nhận hàng và phương thức thanh toán rồi bấm đặt hàng. Giỏ hàng có sản phẩm từ nhiều shop sẽ được tách thành các đơn riêng theo từng shop.
+- Thanh toán: Hỗ trợ 3 hình thức - COD (thanh toán khi nhận hàng), chuyển khoản qua mã QR, và cổng thanh toán VNPay.
+- Voucher: Nhập mã giảm giá ở bước đặt hàng để được giảm giá theo chương trình.
+- Theo dõi đơn: Vào mục "Đơn hàng" để xem trạng thái đơn: Chờ xác nhận → Đã xác nhận → Đang giao → Đã giao.
+- Đổi/trả hàng: Với đơn đủ điều kiện, mở chi tiết đơn và gửi yêu cầu đổi/trả kèm lý do; người bán sẽ xem xét và phản hồi.
+- Đánh giá: Sau khi đơn giao thành công, khách có thể đánh giá sản phẩm bằng số sao và nhận xét.
+- Liên hệ người bán: Khách có thể nhắn tin trực tiếp với shop qua tính năng Chat trên trang sản phẩm hoặc trang đơn hàng.
 
 Quy tắc bắt buộc:
-- Chỉ trả lời dựa trên thông tin sản phẩm được cung cấp trong context.
-- Nếu không có thông tin phù hợp, hãy thành thật nói không biết và đề nghị khách liên hệ shop trực tiếp qua tính năng Chat trên trang sản phẩm.
+- Trả lời câu hỏi về sản phẩm dựa trên thông tin sản phẩm trong phần context bên dưới (nếu có).
+- Trả lời câu hỏi chung (đặt hàng, thanh toán, voucher, theo dõi đơn, đổi/trả...) dựa trên phần "Thông tin chung về Moon Store" ở trên.
+- Nếu không có thông tin phù hợp, hãy thành thật nói không biết và đề nghị khách liên hệ shop trực tiếp qua tính năng Chat.
 - Trả lời ngắn gọn, thân thiện, bằng tiếng Việt.
-- Không bịa đặt thông tin về giá, tình trạng hàng hay đặc điểm sản phẩm.
+- Không bịa đặt thông tin về giá, tình trạng hàng, đặc điểm sản phẩm hay chính sách.
 - Khi giới thiệu sản phẩm, luôn đề cập tên sản phẩm và giá nếu có.`;
 
 @Injectable()
@@ -33,7 +43,7 @@ export class AiChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly embeddingService: EmbeddingService,
-    private readonly vectorStore: VectorStoreService,
+    private readonly vectorStore: VectorStoreService
   ) {}
 
   async streamChat(message: string, history: AiChatHistoryItem[], res: Response): Promise<void> {
@@ -81,9 +91,7 @@ export class AiChatService {
       res.write('data: [DONE]\n\n');
     } catch (error) {
       this.logger.error('AI chat stream error', error);
-      res.write(
-        `data: ${JSON.stringify({ error: 'Có lỗi xảy ra, vui lòng thử lại.' })}\n\n`,
-      );
+      res.write(`data: ${JSON.stringify({ error: 'Có lỗi xảy ra, vui lòng thử lại.' })}\n\n`);
     } finally {
       res.end();
     }
@@ -93,13 +101,16 @@ export class AiChatService {
     this.logger.log('Starting product indexing...');
 
     const products = await this.prisma.product.findMany({
-      where: { status: PRODUCT_STATUS.ACTIVE },
+      // Only products without any embedding yet — avoids re-embedding (and re-spending
+      // API quota on) products that are already indexed.
+      where: { status: PRODUCT_STATUS.ACTIVE, embeddings: { none: {} } },
       select: {
         id: true,
         name: true,
         description: true,
         basePrice: true,
         stock: true,
+        highlights: true,
         category: { select: { name: true } },
         brand: { select: { name: true } },
         seller: { select: { shopName: true } },
@@ -117,6 +128,12 @@ export class AiChatService {
       for (const product of batch) {
         const price = decimalToNumberOrZero(product.basePrice);
         const inStock = product.stock > 0;
+        const highlights = Array.isArray(product.highlights)
+          ? (product.highlights as { label: string; value: string }[])
+          : [];
+        const highlightLine = highlights.length
+          ? `Thông số nổi bật: ${highlights.map((h) => `${h.label}: ${h.value}`).join('; ')}`
+          : null;
 
         chunks.push({
           productId: product.id,
@@ -127,6 +144,7 @@ export class AiChatService {
             `Shop: ${product.seller.shopName}`,
             `Giá: ${price.toLocaleString('vi-VN')}đ`,
             `Tình trạng: ${inStock ? 'Còn hàng' : 'Hết hàng'}`,
+            ...(highlightLine ? [highlightLine] : []),
           ].join('\n'),
         });
 
@@ -146,7 +164,7 @@ export class AiChatService {
       }
 
       this.logger.log(
-        `Indexed ${Math.min(i + CHUNK_BATCH_SIZE, products.length)}/${products.length} products`,
+        `Indexed ${Math.min(i + CHUNK_BATCH_SIZE, products.length)}/${products.length} products`
       );
     }
 

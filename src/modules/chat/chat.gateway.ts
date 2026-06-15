@@ -8,10 +8,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 
-import {
-  ACCESS_COOKIE_NAME,
-  getAccessSecret,
-} from '../../common/auth/auth-token.helper';
+import { ACCESS_COOKIE_NAME, getAccessSecret } from '../../common/auth/auth-token.helper';
 
 const parseCookies = (header: string | undefined): Record<string, string> => {
   if (!header) {
@@ -30,7 +27,7 @@ const parseCookies = (header: string | undefined): Record<string, string> => {
         const key = part.slice(0, eq).trim();
         const value = decodeURIComponent(part.slice(eq + 1).trim());
         return [key, value] as const;
-      }),
+      })
   );
 };
 

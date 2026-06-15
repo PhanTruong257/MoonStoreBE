@@ -64,8 +64,8 @@ model Seller {
 model ShipperProfile {
   id           Int        @id @default(autoincrement())
   userId       Int        @unique @map("user_id")
-  vehicleType  String     @map("vehicle_type")
   status       String
+  vehicleType  String?    @map("vehicle_type")
   rejectReason String?    @map("reject_reason")
   createdAt    DateTime   @default(now()) @map("created_at")
   user         User       @relation(fields: [userId], references: [id])
@@ -103,6 +103,7 @@ model Product {
   basePrice     Decimal            @map("base_price") @db.Decimal(15, 0)
   stock         Int                @default(0)
   imageUrl      String             @map("image_url")
+  highlights    Json?              @map("highlights")
   status        String
   seller        Seller             @relation(fields: [sellerId], references: [id])
   category      Category           @relation(fields: [categoryId], references: [id])
@@ -285,7 +286,7 @@ model PaymentTransaction {
   id              Int      @id @default(autoincrement())
   paymentId       Int      @map("payment_id")
   transactionCode String   @map("transaction_code")
-  gatewayResponse String?  @map("gateway_response")
+  gatewayResponse String?  @map("gateway_response") @db.Text
   status          String
   createdAt       DateTime @default(now()) @map("created_at")
   payment         Payment  @relation(fields: [paymentId], references: [id])
@@ -508,4 +509,12 @@ model ReturnRequest {
   user         User       @relation(fields: [userId], references: [id])
 
   @@map("return_requests")
+}
+
+model SeedLog {
+  id    Int      @id @default(autoincrement())
+  name  String   @unique
+  ranAt DateTime @default(now()) @map("ran_at")
+
+  @@map("seed_logs")
 }

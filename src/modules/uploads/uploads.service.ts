@@ -27,12 +27,12 @@ export class UploadsService {
     }
     if (!UPLOAD_ALLOWED_MIME.includes(file.mimetype)) {
       throw new BadRequestException(
-        `Unsupported file type. Allowed: ${UPLOAD_ALLOWED_MIME.join(', ')}`,
+        `Unsupported file type. Allowed: ${UPLOAD_ALLOWED_MIME.join(', ')}`
       );
     }
     if (file.size > UPLOAD_MAX_BYTES) {
       throw new BadRequestException(
-        `File too large. Max size is ${UPLOAD_MAX_BYTES / (1024 * 1024)}MB.`,
+        `File too large. Max size is ${UPLOAD_MAX_BYTES / (1024 * 1024)}MB.`
       );
     }
 

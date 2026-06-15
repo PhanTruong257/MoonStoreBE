@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { CartService } from './cart.service';
 import type {
@@ -26,14 +36,18 @@ export class CartController {
 
   @Patch('items/:itemId')
   updateItem(
+    @Req() req: Request,
     @Param('itemId', ParseIntPipe) itemId: number,
     @Body() payload: UpdateCartItemDto
   ): Promise<CartUpdateItemResponseDto> {
-    return this.cartService.updateItemQuantity(itemId, payload.quantity);
+    return this.cartService.updateItemQuantity(req, itemId, payload.quantity);
   }
 
   @Delete('items/:itemId')
-  removeItem(@Param('itemId', ParseIntPipe) itemId: number): Promise<CartRemoveItemResponseDto> {
-    return this.cartService.removeItem(itemId);
+  removeItem(
+    @Req() req: Request,
+    @Param('itemId', ParseIntPipe) itemId: number
+  ): Promise<CartRemoveItemResponseDto> {
+    return this.cartService.removeItem(req, itemId);
   }
 }

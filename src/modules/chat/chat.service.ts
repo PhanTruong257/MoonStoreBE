@@ -8,11 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 
 import { getUserIdFromRequest as extractUserId } from '../../common/auth/request-user.helper';
-import {
-  CHAT_EVENT,
-  CONVERSATION_STATUS,
-  MESSAGE_TYPE,
-} from '../../common/constants';
+import { CHAT_EVENT, CONVERSATION_STATUS, MESSAGE_TYPE } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ChatGateway } from './chat.gateway';
 import type { CreateConversationDto } from './dto/create-conversation.dto';
@@ -118,15 +114,10 @@ export class ChatService {
     }
 
     const full = await this.loadConversationWithRelations(conversationId);
-    const unreadByConversation = await this.computeUnreadCounts(userId, [
-      conversationId,
-    ]);
+    const unreadByConversation = await this.computeUnreadCounts(userId, [conversationId]);
 
     return {
-      conversation: this.mapConversationItem(
-        full,
-        unreadByConversation.get(conversationId) ?? 0
-      ),
+      conversation: this.mapConversationItem(full, unreadByConversation.get(conversationId) ?? 0),
     };
   }
 
@@ -157,17 +148,11 @@ export class ChatService {
     });
 
     const conversationIds = conversations.map((c) => c.id);
-    const unreadByConversation = await this.computeUnreadCounts(
-      userId,
-      conversationIds
-    );
+    const unreadByConversation = await this.computeUnreadCounts(userId, conversationIds);
 
     return {
       conversations: conversations.map((conversation) =>
-        this.mapConversationItem(
-          conversation,
-          unreadByConversation.get(conversation.id) ?? 0
-        )
+        this.mapConversationItem(conversation, unreadByConversation.get(conversation.id) ?? 0)
       ),
     };
   }
@@ -180,9 +165,7 @@ export class ChatService {
     await this.assertParticipant(userId, conversationId);
 
     const conversation = await this.loadConversationWithRelations(conversationId);
-    const unreadByConversation = await this.computeUnreadCounts(userId, [
-      conversationId,
-    ]);
+    const unreadByConversation = await this.computeUnreadCounts(userId, [conversationId]);
 
     const messages = await this.prisma.message.findMany({
       where: { conversationId, isDeleted: false },
@@ -232,9 +215,7 @@ export class ChatService {
       throw new BadRequestException('Message content is required.');
     }
     if (trimmed.length > MAX_MESSAGE_LENGTH) {
-      throw new BadRequestException(
-        `Message must not exceed ${MAX_MESSAGE_LENGTH} characters.`
-      );
+      throw new BadRequestException(`Message must not exceed ${MAX_MESSAGE_LENGTH} characters.`);
     }
 
     const type = payload.type ?? MESSAGE_TYPE.TEXT;
@@ -287,10 +268,7 @@ export class ChatService {
     return { message: dto };
   }
 
-  async markRead(
-    req: Request,
-    conversationId: number
-  ): Promise<MarkReadResponseDto> {
+  async markRead(req: Request, conversationId: number): Promise<MarkReadResponseDto> {
     const userId = this.getUserIdFromRequest(req);
     const conversation = await this.assertParticipant(userId, conversationId);
 
@@ -359,10 +337,7 @@ export class ChatService {
     if (!conversation) {
       throw new NotFoundException('Conversation not found.');
     }
-    if (
-      conversation.buyerId !== userId &&
-      conversation.seller.userId !== userId
-    ) {
+    if (conversation.buyerId !== userId && conversation.seller.userId !== userId) {
       throw new ForbiddenException('Not your conversation.');
     }
     return conversation;

@@ -10,10 +10,7 @@ export class ShipperController {
   constructor(private readonly shipperService: ShipperService) {}
 
   @Post('apply')
-  apply(
-    @Req() req: Request,
-    @Body() payload: CreateShipperDto,
-  ) {
+  apply(@Req() req: Request, @Body() payload: CreateShipperDto) {
     return this.shipperService.applyShipper(req, payload);
   }
 
@@ -31,7 +28,7 @@ export class ShipperController {
   updateStatus(
     @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
-    @Body() payload: UpdateShipmentStatusDto,
+    @Body() payload: UpdateShipmentStatusDto
   ) {
     return this.shipperService.updateShipmentStatus(req, id, payload);
   }

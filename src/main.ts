@@ -6,10 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { existsSync, mkdirSync } from 'fs';
 import { AppModule } from './app.module';
-import {
-  UPLOAD_ROOT_DIR,
-  UPLOAD_STATIC_PREFIX,
-} from './modules/uploads/uploads.constants';
+import { UPLOAD_ROOT_DIR, UPLOAD_STATIC_PREFIX } from './modules/uploads/uploads.constants';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);

@@ -13,4 +13,5 @@ export const RETURN_REQUEST_STATUS = {
   COMPLETED: 'COMPLETED',
 } as const;
 
-export type ReturnRequestStatus = (typeof RETURN_REQUEST_STATUS)[keyof typeof RETURN_REQUEST_STATUS];
+export type ReturnRequestStatus =
+  (typeof RETURN_REQUEST_STATUS)[keyof typeof RETURN_REQUEST_STATUS];

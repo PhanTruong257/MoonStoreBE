@@ -1,3 +1,1 @@
-export interface CreateShipperDto {
-  vehicleType: string;
-}
+export type CreateShipperDto = Record<string, never>;

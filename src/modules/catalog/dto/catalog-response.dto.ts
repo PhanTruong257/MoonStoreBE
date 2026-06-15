@@ -46,6 +46,11 @@ export type CatalogOptionGroupDto = {
   options: CatalogOptionDto[];
 };
 
+export type ProductHighlightDto = {
+  label: string;
+  value: string;
+};
+
 export type CatalogProductDetailDto = {
   id: number;
   name: string;
@@ -58,6 +63,7 @@ export type CatalogProductDetailDto = {
   basePrice: number;
   stock: number;
   imageUrl: string;
+  highlights: ProductHighlightDto[] | null;
   averageRating: number;
   totalReviews: number;
   sellerId: number;

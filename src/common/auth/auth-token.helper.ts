@@ -17,10 +17,7 @@ export const getRefreshSecret = (): string => {
   return secret;
 };
 
-export const extractUserIdFromRequest = (
-  req: Request,
-  jwtService: JwtService,
-): number => {
+export const extractUserIdFromRequest = (req: Request, jwtService: JwtService): number => {
   const cookies = req.cookies as Record<string, string> | undefined;
   const token = cookies?.[ACCESS_COOKIE_NAME];
   if (!token) {

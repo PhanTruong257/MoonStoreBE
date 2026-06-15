@@ -11,8 +11,7 @@ export const CONVERSATION_STATUS = {
   CLOSED: 'CLOSED',
 } as const;
 
-export type ConversationStatus =
-  (typeof CONVERSATION_STATUS)[keyof typeof CONVERSATION_STATUS];
+export type ConversationStatus = (typeof CONVERSATION_STATUS)[keyof typeof CONVERSATION_STATUS];
 
 export const CHAT_EVENT = {
   MESSAGE_NEW: 'chat:message:new',

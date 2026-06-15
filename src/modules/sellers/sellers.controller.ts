@@ -117,10 +117,7 @@ export class SellersController {
   }
 
   @Get('me/return-requests')
-  findMyReturnRequests(
-    @Req() req: Request,
-    @Param('status') status?: string,
-  ) {
+  findMyReturnRequests(@Req() req: Request, @Param('status') status?: string) {
     return this.sellersService.findSellerReturnRequests(req, status?.trim() || undefined);
   }
 
@@ -128,7 +125,7 @@ export class SellersController {
   approveReturnRequest(
     @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { note?: string },
+    @Body() body: { note?: string }
   ) {
     return this.sellersService.processReturnRequest(req, id, 'APPROVED', body.note);
   }
@@ -137,23 +134,18 @@ export class SellersController {
   rejectReturnRequest(
     @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { note?: string },
+    @Body() body: { note?: string }
   ) {
     return this.sellersService.processReturnRequest(req, id, 'REJECTED', body.note);
   }
 
   @Patch('me/return-requests/:id/confirm-received')
-  confirmReturnReceived(
-    @Req() req: Request,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  confirmReturnReceived(@Req() req: Request, @Param('id', ParseIntPipe) id: number) {
     return this.sellersService.confirmReturnReceived(req, id);
   }
 
   @Get(':id/storefront')
-  getShopStorefront(
-    @Param('id', ParseIntPipe) id: number
-  ): Promise<ShopStorefrontResponseDto> {
+  getShopStorefront(@Param('id', ParseIntPipe) id: number): Promise<ShopStorefrontResponseDto> {
     return this.sellersService.getShopStorefront(id);
   }
 

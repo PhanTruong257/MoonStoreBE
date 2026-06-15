@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import type { Request } from 'express';
 
 import { SELLER_STATUS, USER_STATUS } from '../../common/constants';
@@ -10,6 +20,7 @@ import type {
   AdminStatsResponseDto,
   AdminUserListResponseDto,
 } from './dto/admin-response.dto';
+import type { GrantUserRoleDto } from './dto/grant-user-role.dto';
 import type { RejectSellerDto } from './dto/reject-seller.dto';
 
 @Controller('admin')
@@ -24,6 +35,15 @@ export class AdminController {
   @Get('users')
   listUsers(@Req() req: Request, @Query('role') role?: string): Promise<AdminUserListResponseDto> {
     return this.adminService.listUsers(req, role?.trim() || undefined);
+  }
+
+  @Patch('users/:userId/grant-role')
+  grantUserRole(
+    @Req() req: Request,
+    @Param('userId', ParseIntPipe) userId: number,
+    @Body() payload: GrantUserRoleDto
+  ) {
+    return this.adminService.grantUserRole(req, userId, payload);
   }
 
   @Patch('users/:userId/promote-admin')
@@ -110,7 +130,7 @@ export class AdminController {
   approveRefundRequest(
     @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { note?: string },
+    @Body() body: { note?: string }
   ) {
     return this.adminService.processRefundRequest(req, id, true, body.note);
   }
@@ -119,7 +139,7 @@ export class AdminController {
   rejectRefundRequest(
     @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { note?: string },
+    @Body() body: { note?: string }
   ) {
     return this.adminService.processRefundRequest(req, id, false, body.note);
   }
@@ -133,7 +153,7 @@ export class AdminController {
   approveWithdrawal(
     @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { note?: string },
+    @Body() body: { note?: string }
   ) {
     return this.adminService.processWithdrawal(req, id, true, body.note);
   }
@@ -142,7 +162,7 @@ export class AdminController {
   rejectWithdrawal(
     @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { note?: string },
+    @Body() body: { note?: string }
   ) {
     return this.adminService.processWithdrawal(req, id, false, body.note);
   }
@@ -166,7 +186,7 @@ export class AdminController {
   rejectShipper(
     @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { reason: string },
+    @Body() body: { reason: string }
   ) {
     return this.adminService.rejectShipper(req, id, body.reason);
   }
@@ -181,11 +201,21 @@ export class AdminController {
     return this.adminService.setShipperStatus(req, id, 'active');
   }
 
+  @Get('shipments')
+  listShipments(@Req() req: Request, @Query('status') status?: string) {
+    return this.adminService.listShipments(req, status?.trim() || undefined);
+  }
+
+  @Get('shippers/active')
+  listActiveShippers(@Req() req: Request) {
+    return this.adminService.listActiveShippers(req);
+  }
+
   @Patch('shipments/:shipmentId/assign')
   assignShipper(
     @Req() req: Request,
     @Param('shipmentId', ParseIntPipe) shipmentId: number,
-    @Body() body: { shipperId: number },
+    @Body() body: { shipperId: number }
   ) {
     return this.adminService.assignShipper(req, shipmentId, body.shipperId);
   }
@@ -199,7 +229,7 @@ export class AdminController {
   completeReturnRequest(
     @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { note?: string },
+    @Body() body: { note?: string }
   ) {
     return this.adminService.completeReturnRequest(req, id, body.note);
   }

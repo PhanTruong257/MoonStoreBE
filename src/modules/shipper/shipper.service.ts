@@ -13,12 +13,20 @@ import {
   getUserIdFromRequest as extractUserId,
 } from '../../common/auth/request-user.helper';
 import {
+  ORDER_GROUP_STATUS,
   SHIPMENT_STATUS,
   SHIPMENT_STATUS_FLOW,
   SHIPPER_STATUS,
-  USER_ROLE,
 } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WalletService } from '../wallet/wallet.service';
+
+/** Shipment states from which marking a delivery FAILED is meaningful. */
+const SHIPMENT_FAILABLE_STATUSES: string[] = [
+  SHIPMENT_STATUS.ASSIGNED,
+  SHIPMENT_STATUS.PICKED_UP,
+  SHIPMENT_STATUS.IN_TRANSIT,
+];
 import type { CreateShipperDto } from './dto/create-shipper.dto';
 import type {
   ShipperApplyResponseDto,
@@ -32,7 +40,8 @@ import type { UpdateShipmentStatusDto } from './dto/update-shipment-status.dto';
 export class ShipperService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly walletService: WalletService
   ) {}
 
   private getUserIdFromRequest(req: Request) {
@@ -51,27 +60,19 @@ export class ShipperService {
       throw new ConflictException('You have already applied to be a shipper.');
     }
 
-    const profile = await this.prisma.$transaction(async (tx) => {
-      const newProfile = await tx.shipperProfile.create({
-        data: {
-          userId,
-          vehicleType: payload.vehicleType,
-          status: SHIPPER_STATUS.PENDING,
-        },
-      });
-
-      await tx.user.update({
-        where: { id: userId },
-        data: { role: USER_ROLE.SHIPPER },
-      });
-
-      return newProfile;
+    // Keep the user as a normal buyer until an admin approves the application —
+    // the role only flips to shipper on approval (mirrors the seller flow).
+    const profile = await this.prisma.shipperProfile.create({
+      data: {
+        userId,
+        vehicleType: 'motorbike',
+        status: SHIPPER_STATUS.PENDING,
+      },
     });
 
     return {
       id: profile.id,
       userId: profile.userId,
-      vehicleType: profile.vehicleType,
       status: profile.status,
       createdAt: profile.createdAt.toISOString(),
     };
@@ -85,7 +86,6 @@ export class ShipperService {
       select: {
         id: true,
         userId: true,
-        vehicleType: true,
         status: true,
         rejectReason: true,
         createdAt: true,
@@ -100,7 +100,6 @@ export class ShipperService {
     return {
       id: profile.id,
       userId: profile.userId,
-      vehicleType: profile.vehicleType,
       status: profile.status,
       rejectReason: profile.rejectReason,
       createdAt: profile.createdAt.toISOString(),
@@ -155,24 +154,42 @@ export class ShipperService {
 
     const shipment = await this.prisma.shipment.findUnique({
       where: { id: shipmentId },
-      select: { id: true, shipperId: true, status: true, orderGroupId: true },
+      select: {
+        id: true,
+        shipperId: true,
+        status: true,
+        orderGroupId: true,
+        orderGroup: { select: { sellerId: true, subtotal: true } },
+      },
     });
 
     if (!shipment || shipment.shipperId !== shipperId) {
       throw new ForbiddenException('Shipment not found or not assigned to you.');
     }
 
-    const currentIndex = SHIPMENT_STATUS_FLOW.indexOf(
-      shipment.status as (typeof SHIPMENT_STATUS_FLOW)[number]
-    );
-    const nextIndex = SHIPMENT_STATUS_FLOW.indexOf(
-      payload.status as (typeof SHIPMENT_STATUS_FLOW)[number]
-    );
+    if (
+      shipment.status === SHIPMENT_STATUS.DELIVERED ||
+      shipment.status === SHIPMENT_STATUS.FAILED
+    ) {
+      throw new BadRequestException('Shipment is already in a final state.');
+    }
 
     const isFailedTransition = payload.status === SHIPMENT_STATUS.FAILED;
 
-    if (!isFailedTransition && (nextIndex === -1 || nextIndex !== currentIndex + 1)) {
-      throw new BadRequestException('Invalid status transition.');
+    if (isFailedTransition) {
+      if (!SHIPMENT_FAILABLE_STATUSES.includes(shipment.status)) {
+        throw new BadRequestException('Cannot mark this shipment as failed.');
+      }
+    } else {
+      const currentIndex = SHIPMENT_STATUS_FLOW.indexOf(
+        shipment.status as (typeof SHIPMENT_STATUS_FLOW)[number]
+      );
+      const nextIndex = SHIPMENT_STATUS_FLOW.indexOf(
+        payload.status as (typeof SHIPMENT_STATUS_FLOW)[number]
+      );
+      if (nextIndex === -1 || nextIndex !== currentIndex + 1) {
+        throw new BadRequestException('Invalid status transition.');
+      }
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -190,11 +207,42 @@ export class ShipperService {
         },
       });
 
+      // Keep the order group status in sync with the live shipment progress so
+      // the buyer sees SHIPPING while the parcel is in transit, not a stale CONFIRMED.
+      if (
+        payload.status === SHIPMENT_STATUS.PICKED_UP ||
+        payload.status === SHIPMENT_STATUS.IN_TRANSIT
+      ) {
+        await tx.orderGroup.update({
+          where: { id: shipment.orderGroupId },
+          data: { status: ORDER_GROUP_STATUS.SHIPPING },
+        });
+      }
+
       if (payload.status === SHIPMENT_STATUS.DELIVERED) {
         await tx.orderGroup.update({
           where: { id: shipment.orderGroupId },
-          data: { status: 'DELIVERED' },
+          data: { status: ORDER_GROUP_STATUS.DELIVERED },
         });
+
+        await tx.orderStatusLog.create({
+          data: {
+            orderGroupId: shipment.orderGroupId,
+            status: ORDER_GROUP_STATUS.DELIVERED,
+            note: 'Delivered by shipper',
+          },
+        });
+
+        // Credit the seller wallet only now, when delivery is actually confirmed.
+        const config = await tx.platformConfig.findFirst();
+        const commissionRate = config ? Number(config.commissionRate) : 10;
+        await this.walletService.creditSellerWallet(
+          shipment.orderGroup.sellerId,
+          shipment.orderGroupId,
+          Number(shipment.orderGroup.subtotal),
+          commissionRate,
+          tx
+        );
       }
 
       return updatedShipment;

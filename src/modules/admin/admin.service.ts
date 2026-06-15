@@ -10,9 +10,12 @@ import { JwtService } from '@nestjs/jwt';
 
 import { assertAdminFromRequest } from '../../common/auth/request-user.helper';
 import {
+  PAYMENT_STATUS,
   REFUND_REQUEST_STATUS,
   RETURN_REQUEST_STATUS,
+  RETURN_REQUEST_TYPE,
   SELLER_STATUS,
+  SHIPMENT_STATUS,
   SHIPPER_STATUS,
   USER_ROLE,
   USER_STATUS,
@@ -20,6 +23,7 @@ import {
   type UserStatus,
 } from '../../common/constants';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WalletService } from '../wallet/wallet.service';
 import type {
   AdminPromoteAdminResponseDto,
   AdminSellerActionResponseDto,
@@ -27,13 +31,15 @@ import type {
   AdminStatsResponseDto,
   AdminUserListResponseDto,
 } from './dto/admin-response.dto';
+import type { GrantUserRoleDto } from './dto/grant-user-role.dto';
 import type { RejectSellerDto } from './dto/reject-seller.dto';
 
 @Injectable()
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly walletService: WalletService
   ) {}
 
   private async assertAdmin(req: Request): Promise<number> {
@@ -243,6 +249,91 @@ export class AdminService {
     };
   }
 
+  async grantUserRole(
+    req: Request,
+    userId: number,
+    payload: GrantUserRoleDto
+  ): Promise<AdminPromoteAdminResponseDto> {
+    await this.assertAdmin(req);
+
+    if (payload.role === USER_ROLE.SELLER && !payload.shopName?.trim()) {
+      throw new BadRequestException('shopName is required when granting seller role.');
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+    if (!target) {
+      throw new NotFoundException('User not found.');
+    }
+    if (target.role === payload.role) {
+      throw new ConflictException(`User already has the ${payload.role} role.`);
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (payload.role === USER_ROLE.SELLER) {
+        const existing = await tx.seller.findUnique({ where: { userId } });
+        if (existing) {
+          await tx.seller.update({
+            where: { userId },
+            data: { status: SELLER_STATUS.ACTIVE, rejectReason: null },
+          });
+        } else {
+          await tx.seller.create({
+            data: {
+              userId,
+              shopName: payload.shopName!.trim(),
+              status: SELLER_STATUS.ACTIVE,
+            },
+          });
+        }
+      } else {
+        const existing = await tx.shipperProfile.findUnique({ where: { userId } });
+        if (existing) {
+          await tx.shipperProfile.update({
+            where: { userId },
+            data: { status: SHIPPER_STATUS.ACTIVE, rejectReason: null },
+          });
+        } else {
+          await tx.shipperProfile.create({
+            data: {
+              userId,
+              vehicleType: 'motorbike',
+              status: SHIPPER_STATUS.ACTIVE,
+            },
+          });
+        }
+      }
+
+      return tx.user.update({
+        where: { id: userId },
+        data: { role: payload.role },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          phone: true,
+          role: true,
+          status: true,
+          createdAt: true,
+        },
+      });
+    });
+
+    return {
+      user: {
+        id: updated.id,
+        email: updated.email,
+        fullName: updated.fullName,
+        phone: updated.phone,
+        role: updated.role,
+        status: updated.status,
+        createdAt: updated.createdAt.toISOString(),
+      },
+    };
+  }
+
   async getStats(req: Request): Promise<AdminStatsResponseDto> {
     await this.assertAdmin(req);
 
@@ -361,19 +452,49 @@ export class AdminService {
 
   async processRefundRequest(req: Request, requestId: number, approved: boolean, note?: string) {
     await this.assertAdmin(req);
-    const request = await this.prisma.refundRequest.findUnique({ where: { id: requestId } });
+    const request = await this.prisma.refundRequest.findUnique({
+      where: { id: requestId },
+      include: { order: { select: { id: true, orderGroups: { select: { id: true } } } } },
+    });
     if (!request) throw new NotFoundException('Refund request not found.');
     if (request.status !== REFUND_REQUEST_STATUS.PENDING) {
       throw new BadRequestException('Request is already processed.');
     }
-    const updated = await this.prisma.refundRequest.update({
-      where: { id: requestId },
-      data: {
-        status: approved ? REFUND_REQUEST_STATUS.APPROVED : REFUND_REQUEST_STATUS.REJECTED,
-        note: note?.trim() ?? null,
-        processedAt: new Date(),
-      },
+
+    if (!approved) {
+      const rejected = await this.prisma.refundRequest.update({
+        where: { id: requestId },
+        data: {
+          status: REFUND_REQUEST_STATUS.REJECTED,
+          note: note?.trim() ?? null,
+          processedAt: new Date(),
+        },
+      });
+      return { id: rejected.id, status: rejected.status };
+    }
+
+    // Approving a refund must move money: claw back the seller credit for every
+    // group of the order and flag the order as refunded. All in one transaction.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      for (const group of request.order.orderGroups) {
+        await this.walletService.reverseSellerCreditForGroup(group.id, tx);
+      }
+
+      await tx.order.update({
+        where: { id: request.orderId },
+        data: { paymentStatus: PAYMENT_STATUS.REFUNDED },
+      });
+
+      return tx.refundRequest.update({
+        where: { id: requestId },
+        data: {
+          status: REFUND_REQUEST_STATUS.APPROVED,
+          note: note?.trim() ?? null,
+          processedAt: new Date(),
+        },
+      });
     });
+
     return { id: updated.id, status: updated.status };
   }
 
@@ -443,17 +564,22 @@ export class AdminService {
       });
     }
 
-    return { id: withdrawalId, status: approved ? WITHDRAWAL_STATUS.APPROVED : WITHDRAWAL_STATUS.REJECTED };
+    return {
+      id: withdrawalId,
+      status: approved ? WITHDRAWAL_STATUS.APPROVED : WITHDRAWAL_STATUS.REJECTED,
+    };
   }
 
   async getRevenueReport(req: Request) {
     await this.assertAdmin(req);
-    const [totalRevenue, totalTransactions, pendingRefunds, pendingWithdrawals] = await Promise.all([
-      this.prisma.walletTransaction.aggregate({ _sum: { fee: true } }),
-      this.prisma.walletTransaction.count(),
-      this.prisma.refundRequest.count({ where: { status: REFUND_REQUEST_STATUS.PENDING } }),
-      this.prisma.withdrawalRequest.count({ where: { status: WITHDRAWAL_STATUS.PENDING } }),
-    ]);
+    const [totalRevenue, totalTransactions, pendingRefunds, pendingWithdrawals] = await Promise.all(
+      [
+        this.prisma.walletTransaction.aggregate({ _sum: { fee: true } }),
+        this.prisma.walletTransaction.count(),
+        this.prisma.refundRequest.count({ where: { status: REFUND_REQUEST_STATUS.PENDING } }),
+        this.prisma.withdrawalRequest.count({ where: { status: WITHDRAWAL_STATUS.PENDING } }),
+      ]
+    );
     return {
       platformRevenue: Number(totalRevenue._sum.fee ?? 0),
       totalTransactions,
@@ -521,7 +647,6 @@ export class AdminService {
       select: {
         id: true,
         userId: true,
-        vehicleType: true,
         status: true,
         rejectReason: true,
         createdAt: true,
@@ -541,10 +666,20 @@ export class AdminService {
       throw new BadRequestException('Shipper is not in PENDING status.');
     }
 
-    const updated = await this.prisma.shipperProfile.update({
-      where: { id: shipperId },
-      data: { status: SHIPPER_STATUS.ACTIVE },
-      include: { user: { select: { id: true, fullName: true, email: true, phone: true } } },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const profile = await tx.shipperProfile.update({
+        where: { id: shipperId },
+        data: { status: SHIPPER_STATUS.ACTIVE },
+        include: { user: { select: { id: true, fullName: true, email: true, phone: true } } },
+      });
+
+      // Role flips to shipper only on approval.
+      await tx.user.update({
+        where: { id: shipper.userId },
+        data: { role: USER_ROLE.SHIPPER },
+      });
+
+      return profile;
     });
 
     return { shipper: updated };
@@ -606,6 +741,9 @@ export class AdminService {
 
     const shipment = await this.prisma.shipment.findUnique({ where: { id: shipmentId } });
     if (!shipment) throw new NotFoundException('Shipment not found.');
+    if (shipment.status !== SHIPMENT_STATUS.PENDING) {
+      throw new BadRequestException('Only pending shipments can be assigned.');
+    }
 
     const shipper = await this.prisma.shipperProfile.findUnique({
       where: { id: shipperId },
@@ -617,10 +755,55 @@ export class AdminService {
 
     const updated = await this.prisma.shipment.update({
       where: { id: shipmentId },
-      data: { shipperId, status: 'ASSIGNED' },
+      data: { shipperId, status: SHIPMENT_STATUS.ASSIGNED },
     });
 
     return { shipmentId: updated.id, shipperId: updated.shipperId, status: updated.status };
+  }
+
+  async listShipments(req: Request, status?: string) {
+    await this.assertAdmin(req);
+
+    const shipments = await this.prisma.shipment.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        orderGroup: {
+          select: {
+            id: true,
+            orderId: true,
+            status: true,
+            seller: { select: { id: true, shopName: true } },
+            items: { select: { id: true, productName: true, quantity: true } },
+          },
+        },
+        shipper: {
+          select: {
+            id: true,
+            user: { select: { id: true, fullName: true, phone: true } },
+          },
+        },
+        logs: { orderBy: { timestamp: 'desc' } },
+      },
+    });
+
+    return { shipments };
+  }
+
+  async listActiveShippers(req: Request) {
+    await this.assertAdmin(req);
+
+    const shippers = await this.prisma.shipperProfile.findMany({
+      where: { status: SHIPPER_STATUS.ACTIVE },
+      select: {
+        id: true,
+        vehicleType: true,
+        user: { select: { id: true, fullName: true, phone: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return { shippers };
   }
 
   async listReturnRequests(req: Request, status?: string) {
@@ -636,7 +819,9 @@ export class AdminService {
             id: true,
             orderId: true,
             seller: { select: { id: true, shopName: true } },
-            items: { select: { id: true, productName: true, quantity: true, imageUrlAtTime: true } },
+            items: {
+              select: { id: true, productName: true, quantity: true, imageUrlAtTime: true },
+            },
           },
         },
       },
@@ -664,19 +849,42 @@ export class AdminService {
 
     const request = await this.prisma.returnRequest.findUnique({
       where: { id: returnRequestId },
+      include: {
+        orderGroup: {
+          select: {
+            id: true,
+            items: { select: { productId: true, quantity: true } },
+          },
+        },
+      },
     });
     if (!request) throw new NotFoundException('Return request not found.');
     if (request.status !== RETURN_REQUEST_STATUS.ITEM_RECEIVED) {
       throw new BadRequestException('Return request must be ITEM_RECEIVED before completing.');
     }
 
-    const updated = await this.prisma.returnRequest.update({
-      where: { id: returnRequestId },
-      data: {
-        status: RETURN_REQUEST_STATUS.COMPLETED,
-        note: note?.trim() ?? request.note,
-        processedAt: new Date(),
-      },
+    // Completing a return restocks the returned items, and for a RETURN (money back)
+    // claws back the seller credit. EXCHANGE keeps the payment (item is swapped).
+    const updated = await this.prisma.$transaction(async (tx) => {
+      for (const item of request.orderGroup.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } },
+        });
+      }
+
+      if (request.type === RETURN_REQUEST_TYPE.RETURN) {
+        await this.walletService.reverseSellerCreditForGroup(request.orderGroup.id, tx);
+      }
+
+      return tx.returnRequest.update({
+        where: { id: returnRequestId },
+        data: {
+          status: RETURN_REQUEST_STATUS.COMPLETED,
+          note: note?.trim() ?? request.note,
+          processedAt: new Date(),
+        },
+      });
     });
 
     return { id: updated.id, status: updated.status };

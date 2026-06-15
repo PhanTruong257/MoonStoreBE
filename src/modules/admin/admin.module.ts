@@ -11,9 +11,10 @@ import { AdminOrdersService } from './admin-orders.service';
 import { AdminService } from './admin.service';
 import { AdminVouchersController } from './admin-vouchers.controller';
 import { AdminVouchersService } from './admin-vouchers.service';
+import { WalletModule } from '../wallet/wallet.module';
 
 @Module({
-  imports: [JwtModule.register({})],
+  imports: [JwtModule.register({}), WalletModule],
   controllers: [
     AdminController,
     AdminCategoriesController,

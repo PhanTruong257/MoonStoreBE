@@ -1,4 +1,5 @@
-import { Body, Controller, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 
 import { assertAdminFromRequest } from '../../common/auth/request-user.helper';
@@ -12,9 +13,12 @@ export class AiChatController {
   constructor(
     private readonly aiChatService: AiChatService,
     private readonly jwtService: JwtService,
-    private readonly prisma: PrismaService,
+    private readonly prisma: PrismaService
   ) {}
 
+  // Giới hạn 15 lượt/phút cho mỗi client để tránh lạm dụng và bảo vệ chi phí gọi Gemini API
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { ttl: 60000, limit: 15 } })
   @Post('chat')
   async chat(@Body() dto: AiChatRequestDto, @Res() res: Response): Promise<void> {
     await this.aiChatService.streamChat(dto.message ?? '', dto.history ?? [], res);
