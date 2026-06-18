@@ -20,7 +20,7 @@ Nhiệm vụ: Tư vấn sản phẩm và giải đáp các câu hỏi thường 
 
 Thông tin chung về Moon Store (dùng để trả lời câu hỏi thường gặp - FAQ):
 - Đặt hàng: Thêm sản phẩm vào giỏ, mở giỏ hàng, chọn sản phẩm muốn mua, chọn địa chỉ nhận hàng và phương thức thanh toán rồi bấm đặt hàng. Giỏ hàng có sản phẩm từ nhiều shop sẽ được tách thành các đơn riêng theo từng shop.
-- Thanh toán: Hỗ trợ 3 hình thức - COD (thanh toán khi nhận hàng), chuyển khoản qua mã QR, và cổng thanh toán VNPay.
+- Thanh toán: Hỗ trợ cổng thanh toán VNPay.
 - Voucher: Nhập mã giảm giá ở bước đặt hàng để được giảm giá theo chương trình.
 - Theo dõi đơn: Vào mục "Đơn hàng" để xem trạng thái đơn: Chờ xác nhận → Đã xác nhận → Đang giao → Đã giao.
 - Đổi/trả hàng: Với đơn đủ điều kiện, mở chi tiết đơn và gửi yêu cầu đổi/trả kèm lý do; người bán sẽ xem xét và phản hồi.
@@ -38,15 +38,21 @@ Quy tắc bắt buộc:
 @Injectable()
 export class AiChatService {
   private readonly logger = new Logger(AiChatService.name);
-  private readonly ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_AI_API_KEY });
+  private readonly ai = new GoogleGenAI({
+    apiKey: process.env.GOOGLE_AI_API_KEY,
+  });
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly embeddingService: EmbeddingService,
-    private readonly vectorStore: VectorStoreService
+    private readonly vectorStore: VectorStoreService,
   ) {}
 
-  async streamChat(message: string, history: AiChatHistoryItem[], res: Response): Promise<void> {
+  async streamChat(
+    message: string,
+    history: AiChatHistoryItem[],
+    res: Response,
+  ): Promise<void> {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -55,7 +61,10 @@ export class AiChatService {
 
     try {
       const queryVector = await this.embeddingService.embedText(message);
-      const results = await this.vectorStore.search(queryVector, RETRIEVAL_TOP_K);
+      const results = await this.vectorStore.search(
+        queryVector,
+        RETRIEVAL_TOP_K,
+      );
 
       const context = results.map((r) => r.content).join('\n\n---\n\n');
 
@@ -64,10 +73,12 @@ export class AiChatService {
         : SYSTEM_PROMPT;
 
       // Chuyển history từ OpenAI format → Gemini format (assistant → model)
-      const contents: Content[] = history.slice(-MAX_HISTORY_TURNS).map((item) => ({
-        role: item.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: item.content }],
-      }));
+      const contents: Content[] = history
+        .slice(-MAX_HISTORY_TURNS)
+        .map((item) => ({
+          role: item.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: item.content }],
+        }));
 
       contents.push({ role: 'user', parts: [{ text: message }] });
 
@@ -75,7 +86,7 @@ export class AiChatService {
         model: CHAT_MODEL,
         config: {
           systemInstruction,
-          maxOutputTokens: 600,
+          maxOutputTokens: 1000,
           temperature: 0.3,
         },
         contents,
@@ -91,7 +102,9 @@ export class AiChatService {
       res.write('data: [DONE]\n\n');
     } catch (error) {
       this.logger.error('AI chat stream error', error);
-      res.write(`data: ${JSON.stringify({ error: 'Có lỗi xảy ra, vui lòng thử lại.' })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ error: 'Có lỗi xảy ra, vui lòng thử lại.' })}\n\n`,
+      );
     } finally {
       res.end();
     }
@@ -156,20 +169,28 @@ export class AiChatService {
         }
       }
 
-      const vectors = await this.embeddingService.embedBatch(chunks.map((c) => c.content));
+      const vectors = await this.embeddingService.embedBatch(
+        chunks.map((c) => c.content),
+      );
 
       for (let j = 0; j < chunks.length; j++) {
-        await this.vectorStore.upsertEmbedding(chunks[j].productId, chunks[j].content, vectors[j]);
+        await this.vectorStore.upsertEmbedding(
+          chunks[j].productId,
+          chunks[j].content,
+          vectors[j],
+        );
         indexedChunks++;
       }
 
       this.logger.log(
-        `Indexed ${Math.min(i + CHUNK_BATCH_SIZE, products.length)}/${products.length} products`
+        `Indexed ${Math.min(i + CHUNK_BATCH_SIZE, products.length)}/${products.length} products`,
       );
     }
 
     this.vectorStore.invalidateCache();
-    this.logger.log(`Indexing complete: ${indexedChunks} chunks from ${products.length} products`);
+    this.logger.log(
+      `Indexing complete: ${indexedChunks} chunks from ${products.length} products`,
+    );
 
     return { indexed: indexedChunks, products: products.length };
   }
