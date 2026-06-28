@@ -10,6 +10,11 @@ export type CreateProductOptionGroupDto = {
   options: CreateProductOptionDto[];
 };
 
+export type ProductHighlightDto = {
+  label: string;
+  value: string;
+};
+
 export type CreateProductDto = {
   name: string;
   description?: string;
@@ -20,4 +25,5 @@ export type CreateProductDto = {
   imageUrl: string;
   status?: string;
   optionGroups?: CreateProductOptionGroupDto[];
+  highlights?: ProductHighlightDto[];
 };

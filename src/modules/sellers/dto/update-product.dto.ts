@@ -1,4 +1,7 @@
-import type { CreateProductOptionGroupDto } from './create-product.dto';
+import type {
+  CreateProductOptionGroupDto,
+  ProductHighlightDto,
+} from './create-product.dto';
 
 export type UpdateSellerProductDto = {
   name?: string;
@@ -10,4 +13,5 @@ export type UpdateSellerProductDto = {
   stock?: number;
   imageUrl?: string;
   optionGroups?: CreateProductOptionGroupDto[];
+  highlights?: ProductHighlightDto[];
 };

@@ -344,7 +344,11 @@ export class OrdersService {
 
     const orders = await this.prisma.order.findMany({
       where: { userId },
-      include: { orderGroups: true },
+      include: {
+        orderGroups: {
+          include: { seller: { select: { shopName: true } } },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -365,6 +369,7 @@ export class OrdersService {
         groups: order.orderGroups.map((group) => ({
           id: group.id,
           sellerId: group.sellerId,
+          shopName: group.seller.shopName,
           status: group.status,
           subtotal: Number(group.subtotal),
           shippingFee: Number(group.shippingFee),
@@ -381,6 +386,7 @@ export class OrdersService {
       include: {
         orderGroups: {
           include: {
+            seller: { select: { shopName: true } },
             items: {
               include: {
                 selectedOptions: true,
@@ -412,6 +418,7 @@ export class OrdersService {
         groups: order.orderGroups.map((group) => ({
           id: group.id,
           sellerId: group.sellerId,
+          shopName: group.seller.shopName,
           status: group.status,
           subtotal: Number(group.subtotal),
           shippingFee: Number(group.shippingFee),

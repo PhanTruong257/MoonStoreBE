@@ -19,6 +19,7 @@ export type OrderItemDto = {
 export type OrderGroupDto = {
   id: number;
   sellerId: number;
+  shopName: string;
   status: string;
   subtotal: number;
   shippingFee: number;

@@ -8,6 +8,7 @@ import type {
   CatalogModuleListResponseDto,
   CatalogProductDetailResponseDto,
   CatalogProductsResponseDto,
+  CatalogRelatedProductsResponseDto,
   ProductHighlightDto,
 } from './dto/catalog-response.dto';
 
@@ -155,6 +156,53 @@ export class CatalogService {
           })),
         })),
       },
+    };
+  }
+
+  async getRelatedProducts(
+    productId: number,
+    limit = 4,
+  ): Promise<CatalogRelatedProductsResponseDto> {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, seller: { status: SELLER_STATUS.ACTIVE } },
+      select: { categoryId: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found.');
+    }
+
+    const categoryIds = await this.resolveCategoryFilterIds(product.categoryId);
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        id: { not: productId },
+        status: { in: [PRODUCT_STATUS.ACTIVE] },
+        seller: { status: SELLER_STATUS.ACTIVE },
+        ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
+      },
+      include: {
+        category: { select: { id: true, name: true } },
+        brand: { select: { id: true, name: true } },
+      },
+      orderBy: { id: 'asc' },
+      take: limit,
+    });
+
+    return {
+      products: products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        status: p.status,
+        categoryId: p.categoryId,
+        categoryName: p.category.name,
+        brandId: p.brandId,
+        brandName: p.brand.name,
+        basePrice: Number(p.basePrice),
+        stock: p.stock,
+        imageUrl: p.imageUrl,
+      })),
     };
   }
 

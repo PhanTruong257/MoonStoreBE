@@ -24,7 +24,11 @@ import type {
   SellersModuleListResponseDto,
   ShopStorefrontResponseDto,
 } from './dto/sellers-response.dto';
-import type { CreateProductDto, CreateProductOptionGroupDto } from './dto/create-product.dto';
+import type {
+  CreateProductDto,
+  CreateProductOptionGroupDto,
+  ProductHighlightDto,
+} from './dto/create-product.dto';
 import type { CreateSellerDto } from './dto/create-seller.dto';
 import type { UpdateSellerProfileDto } from './dto/update-seller-profile.dto';
 import type { UpdateSellerProductDto } from './dto/update-product.dto';
@@ -90,6 +94,9 @@ export class SellersService {
         basePrice: Number(product.basePrice),
         stock: product.stock,
         imageUrl: product.imageUrl,
+        highlights: Array.isArray(product.highlights)
+          ? (product.highlights as unknown as ProductHighlightDto[])
+          : [],
         optionGroups: this.mapOptionGroups(product),
       },
     };
@@ -346,6 +353,10 @@ export class SellersService {
           stock: payload.stock,
           imageUrl: payload.imageUrl.trim(),
           status: payload.status?.trim() ?? PRODUCT_STATUS.ACTIVE,
+          highlights:
+            payload.highlights && payload.highlights.length > 0
+              ? (payload.highlights as unknown as Prisma.InputJsonValue)
+              : Prisma.DbNull,
         },
       });
 
@@ -428,6 +439,12 @@ export class SellersService {
       }
       if (payload.imageUrl !== undefined) {
         data.imageUrl = payload.imageUrl.trim();
+      }
+      if (payload.highlights !== undefined) {
+        data.highlights =
+          payload.highlights && payload.highlights.length > 0
+            ? (payload.highlights as unknown as Prisma.InputJsonValue)
+            : Prisma.DbNull;
       }
 
       await tx.product.update({ where: { id: productId }, data });

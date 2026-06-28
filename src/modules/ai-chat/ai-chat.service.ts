@@ -1,19 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GoogleGenAI } from '@google/genai';
-import type { Content } from '@google/genai';
+import type { Content, Part } from '@google/genai';
 import type { Response } from 'express';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { decimalToNumberOrZero } from '../../common/utils/decimal.helper';
-import { PRODUCT_STATUS } from '../../common/constants';
+import { isQuotaError } from '../../common/utils/ai-error.helper';
+import { getGeminiChatModel, PRODUCT_STATUS } from '../../common/constants';
 import { EmbeddingService } from './embedding.service';
 import { VectorStoreService } from './vector-store.service';
+import { OrderToolsService } from './tools/order-tools.service';
+import { ORDER_TOOL_DECLARATIONS } from './tools/tool-declarations';
 import type { AiChatHistoryItem } from './dto/ai-chat.dto';
+import type { AgentProduct, OrderDraft } from './dto/order-draft.dto';
 
-const CHAT_MODEL = 'gemini-2.5-flash';
 const MAX_HISTORY_TURNS = 6;
 const RETRIEVAL_TOP_K = 5;
 const CHUNK_BATCH_SIZE = 20;
+const MAX_TOOL_ITERATIONS = 6;
 
 const SYSTEM_PROMPT = `Bạn là trợ lý AI của Moon Store - một sàn thương mại điện tử.
 Nhiệm vụ: Tư vấn sản phẩm và giải đáp các câu hỏi thường gặp cho khách hàng.
@@ -49,17 +53,32 @@ Quy tắc bắt buộc:
 - Không bịa đặt thông tin về giá, tình trạng hàng, đặc điểm sản phẩm hay chính sách.
 - Khi giới thiệu sản phẩm, luôn đề cập tên sản phẩm và giá nếu có.`;
 
+const AGENT_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
+
+KHẢ NĂNG ĐẶT HÀNG QUA CHAT (dùng tools):
+- Khi khách muốn tìm/mua: dùng tool searchProducts để tìm sản phẩm thật trên sàn (không bịa).
+- Khi sản phẩm có tùy chọn (size/màu) hoặc cần xác nhận giá/tồn kho: dùng getProductDetail.
+- Khi khách đưa mã giảm giá: dùng validateVoucher.
+- Khi đã rõ sản phẩm + số lượng khách muốn mua: gọi proposeOrder để tạo BẢN NHÁP đơn.
+- TUYỆT ĐỐI KHÔNG được nói "đã đặt hàng thành công". proposeOrder chỉ tạo bản nháp; khách sẽ bấm nút để sang trang thanh toán và tự hoàn tất.
+- Nếu khách chưa đăng nhập, hãy mời khách đăng nhập trước khi đặt.
+- Trước khi gọi proposeOrder, xác nhận lại ngắn gọn tên sản phẩm và số lượng với khách.
+- Sau khi gọi proposeOrder, trả lời ngắn gọn mời khách kiểm tra thông tin trong thẻ và bấm "Tới trang thanh toán".`;
+
 @Injectable()
 export class AiChatService {
   private readonly logger = new Logger(AiChatService.name);
   private readonly ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_AI_API_KEY,
   });
+  // Đọc lúc khởi tạo service (sau khi .env đã nạp) để lấy đúng GEMINI_CHAT_MODEL.
+  private readonly chatModel = getGeminiChatModel();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly embeddingService: EmbeddingService,
     private readonly vectorStore: VectorStoreService,
+    private readonly orderTools: OrderToolsService,
   ) {}
 
   async streamChat(
@@ -86,6 +105,32 @@ export class AiChatService {
         ? `${SYSTEM_PROMPT}\n\nThông tin sản phẩm liên quan từ Moon Store:\n\n${context}`
         : SYSTEM_PROMPT;
 
+      // Gửi kèm các sản phẩm liên quan (kèm id/ảnh/giá) để FE render link + card.
+      // Giữ thứ tự theo độ liên quan của retrieval, dedup theo productId.
+      const orderedProductIds = [...new Set(results.map((r) => r.productId))];
+      if (orderedProductIds.length) {
+        const products = await this.prisma.product.findMany({
+          where: { id: { in: orderedProductIds }, status: PRODUCT_STATUS.ACTIVE },
+          select: { id: true, name: true, imageUrl: true, basePrice: true },
+        });
+        const productMap = new Map(products.map((p) => [p.id, p]));
+        const relatedProducts = orderedProductIds
+          .map((id) => productMap.get(id))
+          .filter((p): p is NonNullable<typeof p> => Boolean(p))
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            imageUrl: p.imageUrl,
+            price: decimalToNumberOrZero(p.basePrice),
+          }));
+
+        if (relatedProducts.length) {
+          res.write(
+            `data: ${JSON.stringify({ products: relatedProducts })}\n\n`,
+          );
+        }
+      }
+
       // Chuyển history từ OpenAI format → Gemini format (assistant → model)
       const contents: Content[] = history
         .slice(-MAX_HISTORY_TURNS)
@@ -97,7 +142,7 @@ export class AiChatService {
       contents.push({ role: 'user', parts: [{ text: message }] });
 
       const stream = await this.ai.models.generateContentStream({
-        model: CHAT_MODEL,
+        model: this.chatModel,
         config: {
           systemInstruction,
           maxOutputTokens: 1000,
@@ -122,6 +167,110 @@ export class AiChatService {
     } finally {
       res.end();
     }
+  }
+
+  /**
+   * Trợ lý đặt hàng agentic: Gemini tự gọi các tool (tìm SP, voucher, địa chỉ,
+   * tạo bản nháp đơn). KHÔNG tạo đơn thật — chỉ trả về orderDraft để khách xác nhận.
+   */
+  async agentChat(
+    userId: number | null,
+    message: string,
+    history: AiChatHistoryItem[],
+  ): Promise<{ text: string; orderDraft?: OrderDraft; products?: AgentProduct[] }> {
+    const systemInstruction = `${AGENT_SYSTEM_PROMPT}\n\nTrạng thái phiên: ${
+      userId ? 'Khách đã đăng nhập.' : 'Khách CHƯA đăng nhập (không thể đặt hàng).'
+    }`;
+
+    const contents: Content[] = history
+      .slice(-MAX_HISTORY_TURNS)
+      .map((item) => ({
+        role: item.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: item.content }],
+      }));
+    contents.push({ role: 'user', parts: [{ text: message }] });
+
+    let orderDraft: OrderDraft | undefined;
+    let finalText = '';
+    // Gom sản phẩm tìm được qua tool searchProducts để FE render card (dedup theo id).
+    const productMap = new Map<number, AgentProduct>();
+
+    try {
+      // Vòng lặp function-calling: model gọi tool → ta thực thi → trả kết quả → lặp.
+      for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+        const response = await this.ai.models.generateContent({
+          model: this.chatModel,
+          config: {
+            systemInstruction,
+            temperature: 0.2,
+            tools: [{ functionDeclarations: ORDER_TOOL_DECLARATIONS }],
+          },
+          contents,
+        });
+
+        const calls = response.functionCalls ?? [];
+        if (!calls.length) {
+          finalText = response.text ?? '';
+          break;
+        }
+
+        // Ghi lại lượt "model gọi tool" rồi đính kèm kết quả tool cho lượt sau.
+        const modelContent = response.candidates?.[0]?.content;
+        if (modelContent) contents.push(modelContent);
+
+        const responseParts: Part[] = [];
+        for (const call of calls) {
+          const result = await this.orderTools.executeTool(
+            call.name ?? '',
+            call.args ?? {},
+            userId,
+          );
+          if (call.name === 'proposeOrder' && result.orderDraft) {
+            orderDraft = result.orderDraft as OrderDraft;
+          }
+          if (call.name === 'searchProducts' && Array.isArray(result.products)) {
+            for (const p of result.products as Array<{
+              productId: number;
+              name: string;
+              imageUrl: string;
+              price: number;
+            }>) {
+              if (!productMap.has(p.productId)) {
+                productMap.set(p.productId, {
+                  id: p.productId,
+                  name: p.name,
+                  imageUrl: p.imageUrl,
+                  price: p.price,
+                });
+              }
+            }
+          }
+          responseParts.push({
+            functionResponse: { name: call.name ?? '', response: result },
+          });
+        }
+        contents.push({ role: 'user', parts: responseParts });
+      }
+    } catch (error) {
+      this.logger.error('AI agent chat error', error as Error);
+      return {
+        text: isQuotaError(error)
+          ? 'Trợ lý AI đang quá tải hoặc đã hết lượt dùng miễn phí hôm nay. Vui lòng thử lại sau ít phút.'
+          : 'Có lỗi xảy ra, vui lòng thử lại.',
+      };
+    }
+
+    if (!finalText) {
+      finalText = orderDraft
+        ? 'Mình đã chuẩn bị đơn hàng bên dưới, bạn kiểm tra rồi bấm "Đặt đơn" để xác nhận nhé.'
+        : 'Mình chưa rõ yêu cầu, bạn mô tả lại giúp mình nhé.';
+    }
+
+    return {
+      text: finalText,
+      orderDraft,
+      products: productMap.size ? [...productMap.values()] : undefined,
+    };
   }
 
   async indexProducts(): Promise<{ indexed: number; products: number }> {

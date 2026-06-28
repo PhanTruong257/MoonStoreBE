@@ -10,5 +10,6 @@ import { WalletModule } from '../wallet/wallet.module';
   imports: [JwtModule.register({}), VouchersModule, PaymentsModule, WalletModule],
   controllers: [OrdersController],
   providers: [OrdersService],
+  exports: [OrdersService],
 })
 export class OrdersModule {}

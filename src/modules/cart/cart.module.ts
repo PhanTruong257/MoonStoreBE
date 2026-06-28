@@ -7,5 +7,6 @@ import { CartService } from './cart.service';
   imports: [JwtModule.register({})],
   controllers: [CartController],
   providers: [CartService],
+  exports: [CartService],
 })
 export class CartModule {}

@@ -75,6 +75,10 @@ export type CatalogProductDetailResponseDto = {
   product: CatalogProductDetailDto;
 };
 
+export type CatalogRelatedProductsResponseDto = {
+  products: CatalogProductListItemDto[];
+};
+
 export type CatalogModuleListResponseDto = {
   module: string;
   message: string;

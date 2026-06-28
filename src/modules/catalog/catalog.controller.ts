@@ -6,6 +6,7 @@ import type {
   CatalogModuleListResponseDto,
   CatalogProductDetailResponseDto,
   CatalogProductsResponseDto,
+  CatalogRelatedProductsResponseDto,
 } from './dto/catalog-response.dto';
 
 @Controller('catalog')
@@ -37,6 +38,11 @@ export class CatalogController {
       page: Number.isFinite(page) && page > 0 ? page : 1,
       limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 40) : 8,
     });
+  }
+
+  @Get('products/:id/related')
+  getRelatedProducts(@Param('id', ParseIntPipe) id: number): Promise<CatalogRelatedProductsResponseDto> {
+    return this.catalogService.getRelatedProducts(id);
   }
 
   @Get('products/:id')

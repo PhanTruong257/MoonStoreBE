@@ -54,6 +54,7 @@ export type SellerProductDto = {
   basePrice: number;
   stock: number;
   imageUrl: string;
+  highlights: { label: string; value: string }[];
   optionGroups: SellerProductOptionGroupDto[];
 };
 

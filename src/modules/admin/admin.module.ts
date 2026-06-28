@@ -11,6 +11,8 @@ import { AdminOrdersService } from './admin-orders.service';
 import { AdminService } from './admin.service';
 import { AdminVouchersController } from './admin-vouchers.controller';
 import { AdminVouchersService } from './admin-vouchers.service';
+import { AdminAnalyticsController } from './analytics/admin-analytics.controller';
+import { AdminAnalyticsService } from './analytics/admin-analytics.service';
 import { WalletModule } from '../wallet/wallet.module';
 
 @Module({
@@ -21,6 +23,7 @@ import { WalletModule } from '../wallet/wallet.module';
     AdminBrandsController,
     AdminVouchersController,
     AdminOrdersController,
+    AdminAnalyticsController,
   ],
   providers: [
     AdminService,
@@ -28,6 +31,7 @@ import { WalletModule } from '../wallet/wallet.module';
     AdminBrandsService,
     AdminVouchersService,
     AdminOrdersService,
+    AdminAnalyticsService,
   ],
 })
 export class AdminModule {}
